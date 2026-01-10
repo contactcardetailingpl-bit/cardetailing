@@ -50,6 +50,7 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string>('morning');
 
   useEffect(() => {
+    // Attempt to initialize EmailJS immediately if available
     if (window.emailjs && EMAILJS_PUBLIC_KEY) {
       window.emailjs.init(EMAILJS_PUBLIC_KEY);
     }
@@ -95,7 +96,8 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
     if (e) e.preventDefault();
     if (isSending) return;
 
-    if (!email) {
+    const targetEmail = email.trim();
+    if (!targetEmail) {
       alert("Contact email is required for confirmation.");
       return;
     }
@@ -120,33 +122,58 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
       };
 
       // Payload for YOU (Studio)
+      // Including every possible email key to satisfy whatever is in your template dashboard
       const studioPayload = {
         ...sharedContext,
         to_email: STUDIO_EMAIL,
-        reply_to: email,
-        customer_email: email
+        email_to: STUDIO_EMAIL,
+        recipient: STUDIO_EMAIL,
+        email: STUDIO_EMAIL,
+        user_email: STUDIO_EMAIL,
+        reply_to: targetEmail,
+        customer_email: targetEmail
       };
 
       // Payload for CLIENT
+      // Including every possible email key to satisfy whatever is in your template dashboard
       const customerPayload = {
         ...sharedContext,
-        to_email: email,
+        to_email: targetEmail,
+        email_to: targetEmail,
+        recipient: targetEmail,
+        email: targetEmail,
+        user_email: targetEmail,
         reply_to: STUDIO_EMAIL
       };
 
-      if (!window.emailjs) throw new Error("EmailJS SDK not loaded");
+      if (!window.emailjs) throw new Error("EmailJS SDK not found. Check internet connection.");
 
-      // 1. Notify Studio
+      // 1. Notify Studio (YOU)
       setStatusMsg('Dispatching Studio Protocol...');
-      await window.emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_STUDIO_TEMPLATE_ID, studioPayload);
+      await window.emailjs.send(
+        EMAILJS_SERVICE_ID, 
+        EMAILJS_STUDIO_TEMPLATE_ID, 
+        studioPayload, 
+        EMAILJS_PUBLIC_KEY
+      );
       
-      // 2. Notify Customer
+      // 2. Notify Customer (CLIENT)
+      // We wrap this in a separate try/catch so that even if the client's email fails, the process continues
       setStatusMsg('Sending Client Confirmation...');
       if (EMAILJS_CUSTOMER_TEMPLATE_ID) {
-        await window.emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_CUSTOMER_TEMPLATE_ID, customerPayload);
+        try {
+          await window.emailjs.send(
+            EMAILJS_SERVICE_ID, 
+            EMAILJS_CUSTOMER_TEMPLATE_ID, 
+            customerPayload, 
+            EMAILJS_PUBLIC_KEY
+          );
+        } catch (custErr) {
+          console.warn("Client email failed, but studio notification was successful.", custErr);
+        }
       }
 
-      // AI Summary
+      // AI Summary Generation
       setStatusMsg('Generating Detailing Strategy...');
       let aiSummary = "Restore paint depth, apply ceramic protection, and sanitize interior cabin.";
       try {
@@ -159,7 +186,7 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
 
       onAddAppointment({
         id: Math.random().toString(36).substr(2, 9),
-        name, email, car, notes,
+        name, email: targetEmail, car, notes,
         services: [...selectedServices],
         aiSummary,
         status: 'PENDING',
@@ -169,9 +196,9 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
       setStatusMsg('Success.');
       setSubmitted(true);
     } catch (error: any) {
-      console.error("Booking Dispatch Error:", error);
-      let displayError = error?.text || error?.message || JSON.stringify(error);
-      alert(`Submission Failed!\n\nReason: ${displayError}`);
+      console.error("Critical Booking Error:", error);
+      let displayError = error?.text || error?.message || "Unknown communication error.";
+      alert(`Submission Failed!\n\nReason: ${displayError}\n\nPlease check your EmailJS Template "To Email" settings.`);
     } finally {
       setIsSending(false);
       setStatusMsg('');

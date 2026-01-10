@@ -191,6 +191,8 @@ const App: React.FC = () => {
 
   const handleAddAppointment = (appt: Appointment) => {
     setAppointments(prev => [appt, ...prev]);
+    // FIX: Clear the selected services after the booking is confirmed
+    setSelectedServices([]);
   };
 
   const handleUpdateAppointments = (newAppts: Appointment[]) => {

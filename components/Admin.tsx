@@ -1,4 +1,5 @@
-import React, { useState, useRef } from 'react';
+
+import React, { useState, useRef, useEffect } from 'react';
 import { WorkshopMedia, WorkshopService, HomepageContent, WorkshopUser, Appointment } from '../types';
 
 interface AdminProps {
@@ -16,6 +17,8 @@ interface AdminProps {
   onUpdateAppointments: (appts: Appointment[]) => void;
   onDeleteAppointment: (id: string) => void;
 }
+
+const STORAGE_AUTH_KEY = 'cdpl_admin_auth_v1';
 
 const Admin: React.FC<AdminProps> = ({ 
   services, 
@@ -39,10 +42,12 @@ const Admin: React.FC<AdminProps> = ({
   const [loginError, setLoginError] = useState('');
   const [activeTab, setActiveTab] = useState<'appointments' | 'services' | 'media' | 'homepage' | 'security'>('appointments');
   
-  // Media local state
+  // Media states
   const [newMediaTitle, setNewMediaTitle] = useState('');
   const [newMediaCat, setNewMediaCat] = useState<'Process' | 'Exterior' | 'Interior'>('Process');
+  const [editingMedia, setEditingMedia] = useState<WorkshopMedia | null>(null);
   const mediaFileRef = useRef<HTMLInputElement>(null);
+  const editMediaFileRef = useRef<HTMLInputElement>(null);
 
   // New Service local state
   const [showAddService, setShowAddService] = useState(false);
@@ -55,6 +60,26 @@ const Admin: React.FC<AdminProps> = ({
   const [newUsername, setNewUsername] = useState('');
   const [newUserPassword, setNewUserPassword] = useState('');
   const [newUserRole, setNewUserRole] = useState<'ADMIN' | 'STAFF'>('STAFF');
+
+  // Check for persistent session on mount
+  useEffect(() => {
+    const savedAuth = localStorage.getItem(STORAGE_AUTH_KEY);
+    if (savedAuth) {
+      try {
+        const authData = JSON.parse(savedAuth);
+        // Basic check to ensure user still exists
+        const foundUser = users.find(u => u.id === authData.id && u.username === authData.username);
+        if (foundUser) {
+          setIsAuthenticated(true);
+          setCurrentUser(foundUser);
+        } else {
+          localStorage.removeItem(STORAGE_AUTH_KEY);
+        }
+      } catch (e) {
+        localStorage.removeItem(STORAGE_AUTH_KEY);
+      }
+    }
+  }, [users]);
 
   const toBase64 = (file: File): Promise<string> => new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -70,9 +95,17 @@ const Admin: React.FC<AdminProps> = ({
       setIsAuthenticated(true);
       setCurrentUser(foundUser);
       setLoginError('');
+      // Save session for persistence
+      localStorage.setItem(STORAGE_AUTH_KEY, JSON.stringify(foundUser));
     } else {
       setLoginError('Invalid Terminal ID or Security Cipher.');
     }
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    setCurrentUser(null);
+    localStorage.removeItem(STORAGE_AUTH_KEY);
   };
 
   const handleUpdateApptStatus = (id: string, status: Appointment['status']) => {
@@ -107,6 +140,32 @@ const Admin: React.FC<AdminProps> = ({
     }
   };
 
+  const handleEditMediaSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingMedia) return;
+
+    const file = editMediaFileRef.current?.files?.[0];
+    let finalUrl = editingMedia.url;
+    let finalType = editingMedia.type;
+
+    if (file) {
+      try {
+        finalUrl = await toBase64(file);
+        finalType = file.type.startsWith('video') ? 'video' : 'image';
+      } catch (err) {
+        alert("Failed to process new file.");
+        return;
+      }
+    }
+
+    onUpdateMedia({
+      ...editingMedia,
+      url: finalUrl,
+      type: finalType
+    });
+    setEditingMedia(null);
+  };
+
   const handleAddService = (e: React.FormEvent) => {
     e.preventDefault();
     const newService: WorkshopService = {
@@ -122,6 +181,24 @@ const Admin: React.FC<AdminProps> = ({
     setNewServiceDesc('');
     setNewServiceCat('');
     setShowAddService(false);
+  };
+
+  const handleUpdateServiceDetail = (idx: number, detailIdx: number, value: string) => {
+    const updated = [...services];
+    updated[idx].details[detailIdx] = value;
+    onUpdateServices(updated);
+  };
+
+  const handleAddServiceDetail = (idx: number) => {
+    const updated = [...services];
+    updated[idx].details.push("New Specification");
+    onUpdateServices(updated);
+  };
+
+  const handleRemoveServiceDetail = (idx: number, detailIdx: number) => {
+    const updated = [...services];
+    updated[idx].details.splice(detailIdx, 1);
+    onUpdateServices(updated);
   };
 
   const handleAddUser = (e: React.FormEvent) => {
@@ -142,11 +219,21 @@ const Admin: React.FC<AdminProps> = ({
     setNewUserPassword('');
   };
 
-  const handleHomepageImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleHomepageImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, field: 'heroImageUrl' | 'featuredImage', index?: number) => {
     const file = e.target.files?.[0];
     if (file) {
-      const base64 = await toBase64(file);
-      onUpdateHomepage({ ...homepageContent, heroImageUrl: base64 });
+      try {
+        const base64 = await toBase64(file);
+        if (field === 'heroImageUrl') {
+          onUpdateHomepage({ ...homepageContent, heroImageUrl: base64 });
+        } else if (field === 'featuredImage' && typeof index === 'number') {
+          const updatedFeatured = [...homepageContent.featuredServices];
+          updatedFeatured[index].imageUrl = base64;
+          onUpdateHomepage({ ...homepageContent, featuredServices: updatedFeatured });
+        }
+      } catch (err) {
+        alert("Image upload failed.");
+      }
     }
   };
 
@@ -193,7 +280,7 @@ const Admin: React.FC<AdminProps> = ({
             <button onClick={() => setActiveTab('services')} className={`px-5 py-2.5 rounded-xl text-[9px] font-bold uppercase tracking-widest transition-all ${activeTab === 'services' ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20' : 'bg-white/5 text-slate-500 hover:text-white border border-white/10'}`}>Services</button>
             <button onClick={() => setActiveTab('homepage')} className={`px-5 py-2.5 rounded-xl text-[9px] font-bold uppercase tracking-widest transition-all ${activeTab === 'homepage' ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20' : 'bg-white/5 text-slate-500 hover:text-white border border-white/10'}`}>Content</button>
             <button onClick={() => setActiveTab('security')} className={`px-5 py-2.5 rounded-xl text-[9px] font-bold uppercase tracking-widest transition-all ${activeTab === 'security' ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20' : 'bg-white/5 text-slate-500 hover:text-white border border-white/10'}`}>Security</button>
-            <button onClick={() => { setIsAuthenticated(false); setCurrentUser(null); }} className="px-5 py-2.5 bg-rose-900/20 border border-rose-500/20 text-[9px] font-bold uppercase tracking-widest text-rose-500 rounded-xl hover:bg-rose-600 hover:text-white transition-all">Logout</button>
+            <button onClick={handleLogout} className="px-5 py-2.5 bg-rose-900/20 border border-rose-500/20 text-[9px] font-bold uppercase tracking-widest text-rose-500 rounded-xl hover:bg-rose-600 hover:text-white transition-all">Logout</button>
         </div>
       </div>
 
@@ -269,31 +356,63 @@ const Admin: React.FC<AdminProps> = ({
                  <div className="w-12 h-12 rounded-2xl bg-blue-600/10 flex items-center justify-center text-xl">🖼️</div>
                  <div>
                     <h3 className="text-2xl font-display font-bold text-white uppercase tracking-tight">Portfolio Manager</h3>
-                    <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Upload photos or videos from your camera roll</p>
+                    <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Upload or edit studio media assets from device camera roll</p>
                  </div>
               </div>
 
-              <form onSubmit={handleAddMediaSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-6 bg-black/40 p-8 rounded-3xl border border-white/5">
-                 <div className="md:col-span-2 space-y-2">
-                    <label className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Device File (Photo/Video)</label>
-                    <input ref={mediaFileRef} type="file" accept="image/*,video/*" className="w-full bg-[#05070a] border border-white/10 rounded-xl px-5 py-2.5 text-white text-xs file:bg-blue-600 file:border-none file:text-white file:text-[9px] file:uppercase file:font-bold file:px-3 file:py-1 file:rounded-full file:mr-4 file:cursor-pointer" />
-                 </div>
-                 <div className="space-y-2">
-                    <label className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Gallery Title</label>
-                    <input required type="text" value={newMediaTitle} onChange={(e) => setNewMediaTitle(e.target.value)} className="w-full bg-[#05070a] border border-white/10 rounded-xl px-5 py-3 text-white text-xs" placeholder="Showcase Title" />
-                 </div>
-                 <div className="space-y-2">
-                    <label className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Category</label>
-                    <select value={newMediaCat} onChange={(e) => setNewMediaCat(e.target.value as any)} className="w-full bg-[#05070a] border border-white/10 rounded-xl px-5 py-3 text-white text-xs uppercase font-bold">
-                       <option>Process</option>
-                       <option>Exterior</option>
-                       <option>Interior</option>
-                    </select>
-                 </div>
-                 <div className="md:col-span-4 flex justify-end">
-                    <button type="submit" className="px-10 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all shadow-lg shadow-blue-500/20">Uplink from Device</button>
-                 </div>
-              </form>
+              {!editingMedia ? (
+                <form onSubmit={handleAddMediaSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-6 bg-black/40 p-8 rounded-3xl border border-white/5">
+                  <div className="md:col-span-2 space-y-2">
+                      <label className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Device File (Photo/Video)</label>
+                      <input ref={mediaFileRef} type="file" accept="image/*,video/*" className="w-full bg-[#05070a] border border-white/10 rounded-xl px-5 py-2.5 text-white text-xs file:bg-blue-600 file:border-none file:text-white file:text-[9px] file:uppercase file:font-bold file:px-3 file:py-1 file:rounded-full file:mr-4 file:cursor-pointer" />
+                  </div>
+                  <div className="space-y-2">
+                      <label className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Gallery Title</label>
+                      <input required type="text" value={newMediaTitle} onChange={(e) => setNewMediaTitle(e.target.value)} className="w-full bg-[#05070a] border border-white/10 rounded-xl px-5 py-3 text-white text-xs" placeholder="Showcase Title" />
+                  </div>
+                  <div className="space-y-2">
+                      <label className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Category</label>
+                      <select value={newMediaCat} onChange={(e) => setNewMediaCat(e.target.value as any)} className="w-full bg-[#05070a] border border-white/10 rounded-xl px-5 py-3 text-white text-xs uppercase font-bold">
+                        <option>Process</option>
+                        <option>Exterior</option>
+                        <option>Interior</option>
+                      </select>
+                  </div>
+                  <div className="md:col-span-4 flex justify-end">
+                      <button type="submit" className="px-10 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all shadow-lg shadow-blue-500/20">Uplink from Device</button>
+                  </div>
+                </form>
+              ) : (
+                <form onSubmit={handleEditMediaSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-6 bg-blue-900/10 p-8 rounded-3xl border border-blue-500/30 animate-in zoom-in-95">
+                  <div className="md:col-span-4 flex justify-between items-center mb-2">
+                    <h4 className="text-[10px] font-bold text-blue-400 uppercase tracking-[0.2em]">Editing Asset Cipher: {editingMedia.id}</h4>
+                    <button type="button" onClick={() => setEditingMedia(null)} className="text-[9px] font-bold text-slate-500 uppercase">Cancel Edit</button>
+                  </div>
+                  <div className="md:col-span-2 space-y-2">
+                      <label className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Replace Media (Optional)</label>
+                      <input ref={editMediaFileRef} type="file" accept="image/*,video/*" className="w-full bg-[#05070a] border border-white/10 rounded-xl px-5 py-2.5 text-white text-xs file:bg-blue-600 file:border-none file:text-white file:text-[9px] file:uppercase file:font-bold file:px-3 file:py-1 file:rounded-full file:mr-4 file:cursor-pointer" />
+                  </div>
+                  <div className="space-y-2">
+                      <label className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Asset Title</label>
+                      <input required type="text" value={editingMedia.title} onChange={(e) => setEditingMedia({...editingMedia, title: e.target.value})} className="w-full bg-[#05070a] border border-white/10 rounded-xl px-5 py-3 text-white text-xs" />
+                  </div>
+                  <div className="space-y-2">
+                      <label className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Category</label>
+                      <select value={editingMedia.category} onChange={(e) => setEditingMedia({...editingMedia, category: e.target.value as any})} className="w-full bg-[#05070a] border border-white/10 rounded-xl px-5 py-3 text-white text-xs uppercase font-bold">
+                        <option>Process</option>
+                        <option>Exterior</option>
+                        <option>Interior</option>
+                      </select>
+                  </div>
+                  <div className="md:col-span-4 space-y-2">
+                      <label className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Internal Description</label>
+                      <textarea value={editingMedia.description} onChange={(e) => setEditingMedia({...editingMedia, description: e.target.value})} className="w-full bg-[#05070a] border border-white/10 rounded-xl px-5 py-3 text-white text-xs h-20 resize-none" />
+                  </div>
+                  <div className="md:col-span-4 flex justify-end">
+                      <button type="submit" className="px-10 py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all">Authorize Updates</button>
+                  </div>
+                </form>
+              )}
 
               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                  {mediaItems.map(item => (
@@ -303,9 +422,12 @@ const Admin: React.FC<AdminProps> = ({
                        ) : (
                           <img src={item.url} className="w-full h-full object-cover group-hover:scale-110 transition-all duration-500" alt="" />
                        )}
-                       <div className="absolute inset-0 bg-black/80 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-4 text-center">
-                          <p className="text-[8px] font-bold text-white uppercase tracking-widest mb-2 line-clamp-1">{item.title}</p>
-                          <button onClick={() => onDeleteMedia(item.id)} className="px-3 py-1 bg-rose-600 text-[7px] font-bold text-white uppercase tracking-widest rounded-full">Remove</button>
+                       <div className="absolute inset-0 bg-black/80 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-4 text-center gap-2">
+                          <p className="text-[8px] font-bold text-white uppercase tracking-widest line-clamp-1">{item.title}</p>
+                          <div className="flex flex-col w-full gap-1.5">
+                            <button onClick={() => setEditingMedia(item)} className="w-full py-1 bg-blue-600 text-[7px] font-bold text-white uppercase tracking-widest rounded-full">Edit Asset</button>
+                            <button onClick={() => onDeleteMedia(item.id)} className="w-full py-1 bg-rose-600 text-[7px] font-bold text-white uppercase tracking-widest rounded-full">Remove</button>
+                          </div>
                        </div>
                     </div>
                  ))}
@@ -416,36 +538,63 @@ const Admin: React.FC<AdminProps> = ({
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                  {services.map((s, idx) => (
-                    <div key={idx} className="bg-black/40 border border-white/5 p-8 rounded-3xl space-y-6 group">
-                       <div className="flex justify-between items-center">
-                          <input className="bg-transparent text-xl font-display font-bold text-white outline-none flex-1 border-b border-white/0 focus:border-white/10 pb-2" value={s.name} onChange={(e) => {
-                             const updated = [...services];
-                             updated[idx].name = e.target.value;
-                             onUpdateServices(updated);
-                          }} />
+                    <div key={idx} className="bg-black/40 border border-white/5 p-8 rounded-3xl space-y-6 group relative">
+                       <div className="absolute top-4 right-4 flex items-center gap-2">
+                          <span className="text-[8px] font-bold text-slate-700 uppercase tracking-widest">Entry Cipher: {idx}</span>
                           <button onClick={() => onUpdateServices(services.filter((_, i) => i !== idx))} className="text-[9px] font-bold text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity uppercase tracking-widest">Delete</button>
                        </div>
-                       <textarea className="bg-transparent text-xs text-slate-400 outline-none w-full h-20 resize-none border-none focus:ring-0" value={s.desc} onChange={(e) => {
-                          const updated = [...services];
-                          updated[idx].desc = e.target.value;
-                          onUpdateServices(updated);
-                       }} />
-                       <div className="flex gap-4">
-                          <div className="flex-1">
-                             <label className="text-[8px] font-bold text-slate-600 uppercase tracking-widest mb-1 block">Price Point</label>
-                             <input className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-xs text-white" value={s.price} onChange={(e) => {
-                                const updated = [...services];
-                                updated[idx].price = e.target.value;
-                                onUpdateServices(updated);
-                             }} />
+                       
+                       <div className="space-y-4">
+                          <div className="space-y-1">
+                            <label className="text-[8px] font-bold text-slate-600 uppercase tracking-widest ml-1">Service Title</label>
+                            <input className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-lg font-display font-bold text-white outline-none focus:border-blue-500/50 transition-all" value={s.name} onChange={(e) => {
+                               const updated = [...services];
+                               updated[idx].name = e.target.value;
+                               onUpdateServices(updated);
+                            }} />
                           </div>
-                          <div className="flex-1">
-                             <label className="text-[8px] font-bold text-slate-600 uppercase tracking-widest mb-1 block">Category</label>
-                             <input className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-xs text-white" value={s.category} onChange={(e) => {
-                                const updated = [...services];
-                                updated[idx].category = e.target.value;
-                                onUpdateServices(updated);
-                             }} />
+
+                          <div className="space-y-1">
+                            <label className="text-[8px] font-bold text-slate-600 uppercase tracking-widest ml-1">Treatment Description</label>
+                            <textarea className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs text-slate-400 outline-none h-24 resize-none focus:border-blue-500/50 transition-all" value={s.desc} onChange={(e) => {
+                               const updated = [...services];
+                               updated[idx].desc = e.target.value;
+                               onUpdateServices(updated);
+                            }} />
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-1">
+                               <label className="text-[8px] font-bold text-slate-600 uppercase tracking-widest ml-1">Investment (Price)</label>
+                               <input className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs text-white outline-none focus:border-blue-500/50 transition-all" value={s.price} onChange={(e) => {
+                                  const updated = [...services];
+                                  updated[idx].price = e.target.value;
+                                  onUpdateServices(updated);
+                               }} />
+                            </div>
+                            <div className="space-y-1">
+                               <label className="text-[8px] font-bold text-slate-600 uppercase tracking-widest ml-1">Market Category</label>
+                               <input className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs text-white outline-none focus:border-blue-500/50 transition-all" value={s.category} onChange={(e) => {
+                                  const updated = [...services];
+                                  updated[idx].category = e.target.value;
+                                  onUpdateServices(updated);
+                               }} />
+                            </div>
+                          </div>
+
+                          <div className="space-y-2">
+                             <div className="flex items-center justify-between px-1">
+                                <label className="text-[8px] font-bold text-slate-600 uppercase tracking-widest">Full Specifications</label>
+                                <button onClick={() => handleAddServiceDetail(idx)} className="text-[8px] font-bold text-blue-500 uppercase">+ Add</button>
+                             </div>
+                             <div className="space-y-2">
+                                {s.details.map((detail, dIdx) => (
+                                   <div key={dIdx} className="flex gap-2">
+                                      <input className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-[10px] text-slate-400 outline-none" value={detail} onChange={(e) => handleUpdateServiceDetail(idx, dIdx, e.target.value)} />
+                                      <button onClick={() => handleRemoveServiceDetail(idx, dIdx)} className="text-rose-500 text-xs">×</button>
+                                   </div>
+                                ))}
+                             </div>
                           </div>
                        </div>
                     </div>
@@ -456,44 +605,119 @@ const Admin: React.FC<AdminProps> = ({
       )}
 
       {activeTab === 'homepage' && (
-        <div className="max-w-4xl mx-auto w-full animate-in slide-in-from-bottom-2">
+        <div className="max-w-4xl mx-auto w-full animate-in slide-in-from-bottom-2 space-y-12">
            <section className="bg-slate-900/40 border border-white/5 p-12 rounded-[3rem] space-y-12">
               <div className="flex items-center gap-4">
                  <div className="w-12 h-12 rounded-2xl bg-blue-600/10 flex items-center justify-center text-xl">🏠</div>
                  <div>
-                    <h3 className="text-2xl font-display font-bold text-white uppercase tracking-tight">Homepage Content</h3>
-                    <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Update landing page visuals from your device</p>
+                    <h3 className="text-2xl font-display font-bold text-white uppercase tracking-tight">Landing Page Terminal</h3>
+                    <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Complete system overhaul: Titles, stats and featured assets</p>
                  </div>
               </div>
               
-              <div className="space-y-8">
+              {/* Hero Section Management */}
+              <div className="space-y-8 bg-black/40 p-8 rounded-[2rem] border border-white/5">
+                 <h4 className="text-[10px] font-bold text-blue-500 uppercase tracking-[0.3em] mb-4">Hero Interface</h4>
                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Hero Title</label>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Primary Hero Title</label>
                     <input className="w-full bg-black border border-white/10 rounded-xl px-5 py-4 text-white text-sm" value={homepageContent.heroTitle} onChange={(e) => onUpdateHomepage({...homepageContent, heroTitle: e.target.value})} />
                  </div>
                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Hero Subtitle</label>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Secondary Hero Subtitle</label>
                     <textarea className="w-full bg-black border border-white/10 rounded-xl px-5 py-4 text-white text-sm h-32 resize-none" value={homepageContent.heroSubtitle} onChange={(e) => onUpdateHomepage({...homepageContent, heroSubtitle: e.target.value})} />
                  </div>
                  <div className="space-y-4 pt-4">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">Hero Background Visual</label>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">Main Cinematic Visual</label>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
                        <div className="aspect-video bg-black rounded-2xl overflow-hidden border border-white/10 shadow-inner">
                           <img src={homepageContent.heroImageUrl} className="w-full h-full object-cover" alt="Hero Preview" />
                        </div>
                        <div className="space-y-4">
-                          <p className="text-[10px] text-slate-400 leading-relaxed italic">Upload a high-resolution photo from your device's camera roll to update the workshop's landing page visual.</p>
-                          <input type="file" accept="image/*" onChange={handleHomepageImageUpload} className="w-full text-xs text-slate-500 file:bg-blue-600 file:border-none file:text-white file:text-[9px] file:uppercase file:font-bold file:px-4 file:py-2 file:rounded-xl file:mr-4 file:cursor-pointer" />
+                          <p className="text-[10px] text-slate-400 leading-relaxed italic">Upload high-res automotive photography from your device roll.</p>
+                          <input type="file" accept="image/*" onChange={(e) => handleHomepageImageUpload(e, 'heroImageUrl')} className="w-full text-xs text-slate-500 file:bg-blue-600 file:border-none file:text-white file:text-[9px] file:uppercase file:font-bold file:px-4 file:py-2 file:rounded-xl file:mr-4 file:cursor-pointer" />
                        </div>
                     </div>
                  </div>
+              </div>
+
+              {/* Stats Management */}
+              <div className="space-y-8 bg-black/40 p-8 rounded-[2rem] border border-white/5">
+                <h4 className="text-[10px] font-bold text-blue-500 uppercase tracking-[0.3em] mb-4">Market Stats Archive</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {homepageContent.stats.map((stat, i) => (
+                    <div key={i} className="flex gap-4 p-4 bg-white/5 rounded-2xl border border-white/5">
+                      <div className="flex-1 space-y-1">
+                        <label className="text-[8px] font-bold text-slate-600 uppercase tracking-widest">Label</label>
+                        <input className="w-full bg-black border border-white/10 rounded-lg px-3 py-2 text-white text-xs" value={stat.label} onChange={(e) => {
+                          const updatedStats = [...homepageContent.stats];
+                          updatedStats[i].label = e.target.value;
+                          onUpdateHomepage({...homepageContent, stats: updatedStats});
+                        }} />
+                      </div>
+                      <div className="flex-1 space-y-1">
+                        <label className="text-[8px] font-bold text-slate-600 uppercase tracking-widest">Value</label>
+                        <input className="w-full bg-black border border-white/10 rounded-lg px-3 py-2 text-white text-xs" value={stat.val} onChange={(e) => {
+                          const updatedStats = [...homepageContent.stats];
+                          updatedStats[i].val = e.target.value;
+                          onUpdateHomepage({...homepageContent, stats: updatedStats});
+                        }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Signature Services Management */}
+              <div className="space-y-8 bg-black/40 p-8 rounded-[2rem] border border-white/5">
+                <h4 className="text-[10px] font-bold text-blue-500 uppercase tracking-[0.3em] mb-4">Signature Programs Content</h4>
+                <div className="grid grid-cols-1 gap-4">
+                  <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Signature Section Title</label>
+                      <input className="w-full bg-black border border-white/10 rounded-xl px-5 py-4 text-white text-sm" value={homepageContent.servicesTitle} onChange={(e) => onUpdateHomepage({...homepageContent, servicesTitle: e.target.value})} />
+                  </div>
+                  <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Signature Section Subtitle</label>
+                      <textarea className="w-full bg-black border border-white/10 rounded-xl px-5 py-4 text-white text-sm h-24 resize-none" value={homepageContent.servicesSubtitle} onChange={(e) => onUpdateHomepage({...homepageContent, servicesSubtitle: e.target.value})} />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-8 pt-6">
+                  {homepageContent.featuredServices.map((fs, i) => (
+                    <div key={i} className="bg-white/5 border border-white/5 rounded-3xl p-6 flex flex-col md:flex-row gap-8">
+                      <div className="w-full md:w-48 aspect-video md:aspect-square bg-black rounded-2xl overflow-hidden relative group">
+                        <img src={fs.imageUrl} className="w-full h-full object-cover" alt="" />
+                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center p-4">
+                          <input type="file" accept="image/*" onChange={(e) => handleHomepageImageUpload(e, 'featuredImage', i)} className="w-full text-[8px] file:bg-blue-600 file:border-none file:text-white file:text-[8px] file:px-2 file:py-1 file:rounded-full file:cursor-pointer" />
+                        </div>
+                      </div>
+                      <div className="flex-1 space-y-4">
+                        <div className="space-y-1">
+                          <label className="text-[8px] font-bold text-slate-600 uppercase tracking-widest ml-1">Featured Title</label>
+                          <input className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white text-sm font-bold" value={fs.title} onChange={(e) => {
+                            const updated = [...homepageContent.featuredServices];
+                            updated[i].title = e.target.value;
+                            onUpdateHomepage({...homepageContent, featuredServices: updated});
+                          }} />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[8px] font-bold text-slate-600 uppercase tracking-widest ml-1">Short Description</label>
+                          <textarea className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-slate-400 text-xs h-20 resize-none" value={fs.desc} onChange={(e) => {
+                            const updated = [...homepageContent.featuredServices];
+                            updated[i].desc = e.target.value;
+                            onUpdateHomepage({...homepageContent, featuredServices: updated});
+                          }} />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
            </section>
         </div>
       )}
 
       <div className="text-center mt-20">
-         <p className="text-[10px] font-bold text-slate-800 uppercase tracking-[0.5em]">Studio CMS Root Access v3.3 | Polish Detailing Standards</p>
+         <p className="text-[10px] font-bold text-slate-800 uppercase tracking-[0.5em]">Studio CMS Root Access v4.0 | Persistent Session Enabled</p>
       </div>
     </div>
   );

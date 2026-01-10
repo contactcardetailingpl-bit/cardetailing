@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { summarizeInquiry } from '../services/geminiService';
 import { Appointment, WorkshopService } from '../types';
@@ -107,8 +106,7 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
     try {
       const selectedSlotInfo = TIME_SLOTS.find(t => t.id === selectedTimeSlot);
       
-      // Shared context for both emails
-      const bookingContext = {
+      const sharedContext = {
         from_name: name,
         customer_name: name,
         vehicle: car,
@@ -121,36 +119,34 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
         studio_notes: notes || 'No additional notes provided.'
       };
 
-      // 1. DATA FOR THE STUDIO (You)
+      // Payload for YOU (Studio)
       const studioPayload = {
-        ...bookingContext,
-        to_email: STUDIO_EMAIL,    // This goes to your inbox
-        recipient: STUDIO_EMAIL,
-        reply_to: email,           // So you can reply to the customer's email
-        customer_email: email,     // For your reference in the body
+        ...sharedContext,
+        to_email: STUDIO_EMAIL,
+        reply_to: email,
+        customer_email: email
       };
 
-      // 2. DATA FOR THE CLIENT (Customer)
+      // Payload for CLIENT
       const customerPayload = {
-        ...bookingContext,
-        to_email: email,           // This MUST go to the customer's inbox
-        recipient: email,
-        reply_to: STUDIO_EMAIL,    // So they can reply to your studio
+        ...sharedContext,
+        to_email: email,
+        reply_to: STUDIO_EMAIL
       };
 
       if (!window.emailjs) throw new Error("EmailJS SDK not loaded");
 
-      // CALL 1: Notify Studio
+      // 1. Notify Studio
       setStatusMsg('Dispatching Studio Protocol...');
       await window.emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_STUDIO_TEMPLATE_ID, studioPayload);
       
-      // CALL 2: Notify Customer
+      // 2. Notify Customer
       setStatusMsg('Sending Client Confirmation...');
       if (EMAILJS_CUSTOMER_TEMPLATE_ID) {
         await window.emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_CUSTOMER_TEMPLATE_ID, customerPayload);
       }
 
-      // AI Summary Generation
+      // AI Summary
       setStatusMsg('Generating Detailing Strategy...');
       let aiSummary = "Restore paint depth, apply ceramic protection, and sanitize interior cabin.";
       try {
@@ -175,7 +171,7 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
     } catch (error: any) {
       console.error("Booking Dispatch Error:", error);
       let displayError = error?.text || error?.message || JSON.stringify(error);
-      alert(`Submission Failed!\n\nReason: ${displayError}\n\nIMPORTANT: Please check your EmailJS dashboard. Ensure the 'To Email' field in your Customer Template is set to {{to_email}} and NOT your own email address.`);
+      alert(`Submission Failed!\n\nReason: ${displayError}`);
     } finally {
       setIsSending(false);
       setStatusMsg('');
@@ -225,8 +221,6 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
-        
-        {/* Sidebar Manifest */}
         <div className="lg:col-span-5 space-y-8 animate-in slide-in-from-left-4 duration-700 lg:sticky lg:top-32">
            <div className="bg-slate-900/50 border border-white/5 rounded-[2.5rem] p-8 space-y-8 shadow-2xl">
               <div className="flex items-center justify-between pb-6 border-b border-white/5">
@@ -234,59 +228,24 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
                     <div className="w-10 h-10 rounded-xl bg-blue-600/20 flex items-center justify-center text-lg">📋</div>
                     <h4 className="text-xl font-display font-bold text-white uppercase tracking-tight">Booking Manifest</h4>
                  </div>
-                 <div className="flex items-center gap-1.5 bg-blue-500/10 px-2 py-1 rounded-full border border-blue-500/20">
-                    <span className="w-1 h-1 rounded-full bg-blue-500 animate-pulse"></span>
-                    <span className="text-[8px] font-bold text-blue-400 uppercase tracking-widest">Live Sync</span>
-                 </div>
               </div>
-
               <div className="space-y-4">
                  <label className="text-[9px] font-bold text-slate-500 uppercase tracking-[0.2em] block mb-2">Selected Programs</label>
                  {selectedServices.length === 0 ? (
                     <div className="p-4 rounded-xl border border-dashed border-white/10 text-center">
-                        <p className="text-xs text-slate-600 italic">No services selected in registry.</p>
+                        <p className="text-xs text-slate-600 italic">No services selected.</p>
                     </div>
                  ) : (
                     <div className="space-y-2">
                        {selectedServices.map((service, i) => (
                           <div key={i} className="flex items-center justify-between bg-white/5 p-4 rounded-xl border border-white/5 group">
-                             <div className="flex items-center gap-3">
-                                <span className="text-blue-500">•</span>
-                                <span className="text-xs font-bold text-slate-300 uppercase tracking-tight">{service}</span>
-                             </div>
-                             <button onClick={() => onToggleService(service)} className="text-slate-600 hover:text-rose-500 text-xs transition-colors p-1">✕</button>
+                             <span className="text-xs font-bold text-slate-300 uppercase tracking-tight">{service}</span>
+                             <button onClick={() => onToggleService(service)} className="text-slate-600 hover:text-rose-500 text-xs">✕</button>
                           </div>
                        ))}
                     </div>
                  )}
               </div>
-
-              {(name || car || selectedDate) && (
-                <div className="space-y-4 pt-4 border-t border-white/5">
-                   <label className="text-[9px] font-bold text-slate-500 uppercase tracking-[0.2em] block mb-2">Registration Summary</label>
-                   <div className="grid grid-cols-1 gap-3">
-                      {name && (
-                        <div className="flex justify-between text-[10px] uppercase tracking-widest">
-                           <span className="text-slate-600">Client:</span>
-                           <span className="text-slate-400 font-bold">{name}</span>
-                        </div>
-                      )}
-                      {car && (
-                        <div className="flex justify-between text-[10px] uppercase tracking-widest">
-                           <span className="text-slate-600">Vehicle:</span>
-                           <span className="text-slate-400 font-bold">{car}</span>
-                        </div>
-                      )}
-                      {step !== 'details' && (
-                        <div className="flex justify-between text-[10px] uppercase tracking-widest text-blue-400">
-                           <span className="text-slate-600">Schedule:</span>
-                           <span className="font-bold">{new Date(selectedDate).toLocaleDateString('en-PL', { day: 'numeric', month: 'short' })} • {TIME_SLOTS.find(t => t.id === selectedTimeSlot)?.label}</span>
-                        </div>
-                      )}
-                   </div>
-                </div>
-              )}
-
               <div className="pt-6">
                  <div className="bg-blue-600/10 p-5 rounded-2xl border border-blue-500/20 text-center">
                     <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest mb-1">Current Total Estimate</p>
@@ -294,20 +253,12 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
                  </div>
               </div>
            </div>
-
-           <div className="bg-black/20 border border-white/5 rounded-3xl p-6 italic">
-              <p className="text-[10px] text-slate-500 leading-relaxed">
-                 * Final inspection in our Poznań studio may adjust pricing based on actual paint condition. Deposit is fully refundable up to 48 hours before scheduled intake.
-              </p>
-           </div>
         </div>
 
-        {/* Main Form Area */}
         <div className="lg:col-span-7 relative flex flex-col bg-slate-900/30 p-8 md:p-12 rounded-[2.5rem] border border-white/5 shadow-2xl min-h-[600px]">
           {isSending && (
             <div className="absolute inset-0 z-50 bg-[#05070a]/90 backdrop-blur-xl flex flex-col items-center justify-center p-8 text-center rounded-[2.5rem] border border-blue-500/20">
                <div className="w-20 h-20 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin mb-8"></div>
-               <h3 className="text-2xl font-display font-bold uppercase tracking-widest mb-2 text-gradient">Processing Booking</h3>
                <p className="text-slate-500 text-[10px] uppercase tracking-widest animate-pulse">{statusMsg}</p>
             </div>
           )}
@@ -316,16 +267,16 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
               <div className="space-y-12 animate-in slide-in-from-right-4 duration-500">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                       <div className="space-y-2">
-                          <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 ml-1">Client Name</label>
-                          <input required type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full bg-black border border-white/10 rounded-xl px-5 py-4 text-white text-sm focus:border-blue-500/50 outline-none" placeholder="John Doe" />
+                          <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">Client Name</label>
+                          <input required type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full bg-black border border-white/10 rounded-xl px-5 py-4 text-white text-sm outline-none" placeholder="John Doe" />
                       </div>
                       <div className="space-y-2">
-                          <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 ml-1">Contact Email</label>
-                          <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-black border border-white/10 rounded-xl px-5 py-4 text-white text-sm focus:border-blue-500/50 outline-none" placeholder="john@detailing.com" />
+                          <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">Contact Email</label>
+                          <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-black border border-white/10 rounded-xl px-5 py-4 text-white text-sm outline-none" placeholder="john@email.com" />
                       </div>
                       <div className="md:col-span-2 space-y-2">
-                          <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 ml-1">Vehicle Specification</label>
-                          <input required type="text" value={car} onChange={(e) => setCar(e.target.value)} className="w-full bg-black border border-white/10 rounded-xl px-5 py-4 text-white text-sm focus:border-blue-500/50 outline-none" placeholder="e.g. 2024 Porsche Taycan" />
+                          <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">Vehicle Specification</label>
+                          <input required type="text" value={car} onChange={(e) => setCar(e.target.value)} className="w-full bg-black border border-white/10 rounded-xl px-5 py-4 text-white text-sm outline-none" placeholder="e.g. 2024 Porsche Taycan" />
                       </div>
                   </div>
                   <div className="flex justify-end pt-4">
@@ -337,10 +288,10 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
           {step === 'schedule' && (
               <div className="space-y-12 animate-in slide-in-from-right-4 duration-500">
                   <div className="space-y-6">
-                      <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 ml-1">Select Date</label>
+                      <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">Select Date</label>
                       <div className="grid grid-cols-4 sm:grid-cols-7 gap-3">
                           {calendarDays.map((day) => (
-                              <button key={day.full} onClick={() => setSelectedDate(day.full)} className={`flex flex-col items-center py-4 rounded-xl border transition-all ${selectedDate === day.full ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/20' : 'bg-black/40 border-white/5 text-slate-500 hover:border-white/20'}`}>
+                              <button key={day.full} onClick={() => setSelectedDate(day.full)} className={`flex flex-col items-center py-4 rounded-xl border transition-all ${selectedDate === day.full ? 'bg-blue-600 border-blue-500 text-white shadow-lg' : 'bg-black/40 border-white/5 text-slate-500 hover:border-white/20'}`}>
                                   <span className="text-[8px] uppercase tracking-widest font-bold mb-1">{day.day}</span>
                                   <span className="text-lg font-display font-bold">{day.date}</span>
                               </button>
@@ -348,10 +299,93 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
                       </div>
                   </div>
                   <div className="space-y-6">
-                      <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 ml-1">Preferred Time Slot</label>
+                      <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">Preferred Time Slot</label>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                           {TIME_SLOTS.map((slot) => (
-                              <button key={slot.id} onClick={() => setSelectedTimeSlot(slot.id)} className={`flex items-center gap-4 p-5 rounded-2xl border transition-all ${selectedTimeSlot === slot.id ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/20' : 'bg-black/40 border-white/5 text-slate-400 hover:border-white/20'}`}>
+                              <button key={slot.id} onClick={() => setSelectedTimeSlot(slot.id)} className={`flex items-center gap-4 p-5 rounded-2xl border transition-all ${selectedTimeSlot === slot.id ? 'bg-blue-600 border-blue-500 text-white shadow-lg' : 'bg-black/40 border-white/5 text-slate-400 hover:border-white/20'}`}>
                                   <span className="text-2xl">{slot.icon}</span>
                                   <div className="text-left">
-                                      <p className="text-[10px] font-bold uppercase tracking-wid
+                                      <p className="text-[10px] font-bold uppercase tracking-widest">{slot.label}</p>
+                                      <p className="text-[9px] font-mono opacity-60">{slot.time}</p>
+                                  </div>
+                              </button>
+                          ))}
+                      </div>
+                  </div>
+                  <div className="flex justify-between pt-4">
+                      <button onClick={() => setStep('details')} className="px-8 py-5 bg-white/5 text-slate-400 rounded-xl font-bold uppercase tracking-widest text-[11px] hover:bg-white/10 transition-all">Back</button>
+                      <button onClick={() => setStep('payment')} className="px-12 py-5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold uppercase tracking-widest text-[11px] transition-all">Next: Secure Payment →</button>
+                  </div>
+              </div>
+          )}
+
+          {step === 'payment' && (
+              <div className="space-y-10 animate-in slide-in-from-right-4 duration-500">
+                  <div className="bg-blue-600/5 border border-blue-500/20 p-8 rounded-3xl">
+                      <div className="flex flex-col gap-6">
+                          <div className="flex justify-between items-end border-b border-white/5 pb-4">
+                              <h3 className="text-xl font-display font-bold text-white uppercase tracking-tight">Price Breakdown</h3>
+                              <span className="text-[9px] font-mono text-blue-400 uppercase tracking-widest">#BK-{Math.floor(Math.random() * 9000 + 1000)}</span>
+                          </div>
+                          <div className="space-y-3">
+                              {lineItems.map((item, idx) => (
+                                  <div key={idx} className="flex justify-between text-sm">
+                                      <span className="text-slate-400">{item.name}</span>
+                                      <span className="text-white font-mono">{item.price} PLN</span>
+                                  </div>
+                              ))}
+                              {surcharge > 0 && (
+                                  <div className="flex justify-between text-sm text-blue-400 font-bold">
+                                      <span>{surchargeLabel} Surcharge</span>
+                                      <span className="font-mono">+{surcharge} PLN</span>
+                                  </div>
+                              )}
+                          </div>
+                          <div className="border-t border-dashed border-white/10 pt-4 flex justify-between items-center">
+                              <span className="text-xs font-bold uppercase tracking-widest text-slate-500">Total Studio Investment</span>
+                              <span className="text-2xl font-display font-bold text-white">{totalPrice} PLN</span>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                              <div className="bg-emerald-500/10 border border-emerald-500/20 p-5 rounded-2xl text-center">
+                                  <p className="text-[9px] font-bold text-emerald-500 uppercase tracking-widest mb-1">Due Now (Deposit)</p>
+                                  <p className="text-3xl font-display font-bold text-white font-mono">{depositAmount} <span className="text-sm">PLN</span></p>
+                              </div>
+                              <div className="bg-blue-500/10 border border-blue-500/20 p-5 rounded-2xl text-center">
+                                  <p className="text-[9px] font-bold text-blue-400 uppercase tracking-widest mb-1">Due on Completion</p>
+                                  <p className="text-3xl font-display font-bold text-white font-mono">{remainingBalance} <span className="text-sm">PLN</span></p>
+                              </div>
+                          </div>
+                      </div>
+                  </div>
+
+                  <div className="bg-black/40 p-8 rounded-[2.5rem] border border-white/5 space-y-6">
+                      <div className="space-y-2">
+                          <label className="text-[9px] font-bold uppercase tracking-widest text-slate-600">Card Number</label>
+                          <input type="text" value={cardNumber} onChange={(e) => handleCardInput(e.target.value)} placeholder="0000 0000 0000 0000" className="w-full bg-[#05070a] border border-white/10 rounded-xl px-5 py-4 text-white font-mono text-sm tracking-widest outline-none" />
+                      </div>
+                      <div className="grid grid-cols-2 gap-6">
+                          <div className="space-y-2">
+                              <label className="text-[9px] font-bold uppercase tracking-widest text-slate-600">Expiry</label>
+                              <input type="text" placeholder="MM/YY" className="w-full bg-[#05070a] border border-white/10 rounded-xl px-5 py-4 text-white font-mono text-sm outline-none" />
+                          </div>
+                          <div className="space-y-2">
+                              <label className="text-[9px] font-bold uppercase tracking-widest text-slate-600">CVV</label>
+                              <input type="text" placeholder="•••" className="w-full bg-[#05070a] border border-white/10 rounded-xl px-5 py-4 text-white font-mono text-sm outline-none" />
+                          </div>
+                      </div>
+                  </div>
+                  <div className="flex justify-between pt-4 items-center">
+                      <button onClick={() => setStep('schedule')} className="px-8 py-5 bg-white/5 text-slate-400 rounded-xl font-bold uppercase tracking-widest text-[11px] hover:bg-white/10 transition-all">Back</button>
+                      <button onClick={handleFinalSubmit} disabled={isSending || !cardNumber} className="px-16 py-6 rounded-2xl font-bold uppercase tracking-widest text-[12px] bg-emerald-600 hover:bg-emerald-500 text-white shadow-2xl transition-all disabled:opacity-50">
+                        {isSending ? "Authorizing..." : `Authorize ${depositAmount} PLN Deposit`}
+                      </button>
+                  </div>
+              </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default Booking;

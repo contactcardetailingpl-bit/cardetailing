@@ -34,6 +34,7 @@ export interface WorkshopService {
   desc: string;
   category: string;
   details: string[];
+  isVisible?: boolean; // New property to toggle visibility on the public site
 }
 
 export interface Appointment {

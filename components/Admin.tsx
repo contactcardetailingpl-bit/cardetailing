@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { WorkshopMedia, WorkshopService, HomepageContent, WorkshopUser, Appointment } from '../types';
 
@@ -67,7 +66,6 @@ const Admin: React.FC<AdminProps> = ({
     if (savedAuth) {
       try {
         const authData = JSON.parse(savedAuth);
-        // Basic check to ensure user still exists
         const foundUser = users.find(u => u.id === authData.id && u.username === authData.username);
         if (foundUser) {
           setIsAuthenticated(true);
@@ -95,7 +93,6 @@ const Admin: React.FC<AdminProps> = ({
       setIsAuthenticated(true);
       setCurrentUser(foundUser);
       setLoginError('');
-      // Save session for persistence
       localStorage.setItem(STORAGE_AUTH_KEY, JSON.stringify(foundUser));
     } else {
       setLoginError('Invalid Terminal ID or Security Cipher.');
@@ -173,7 +170,8 @@ const Admin: React.FC<AdminProps> = ({
       price: newServicePrice,
       desc: newServiceDesc,
       category: newServiceCat,
-      details: []
+      details: [],
+      isVisible: true
     };
     onUpdateServices([...services, newService]);
     setNewServiceName('');
@@ -181,6 +179,14 @@ const Admin: React.FC<AdminProps> = ({
     setNewServiceDesc('');
     setNewServiceCat('');
     setShowAddService(false);
+  };
+
+  const toggleServiceVisibility = (idx: number) => {
+    const updated = [...services];
+    // Default to true if undefined
+    const currentVisibility = updated[idx].isVisible === undefined ? true : updated[idx].isVisible;
+    updated[idx].isVisible = !currentVisibility;
+    onUpdateServices(updated);
   };
 
   const handleUpdateServiceDetail = (idx: number, detailIdx: number, value: string) => {
@@ -447,7 +453,6 @@ const Admin: React.FC<AdminProps> = ({
                  </div>
               </div>
 
-              {/* Add New User Form */}
               <form onSubmit={handleAddUser} className="bg-black/40 border border-white/5 p-8 rounded-[2rem] space-y-6">
                  <h4 className="text-[10px] font-bold text-blue-500 uppercase tracking-widest">Register New Terminal User</h4>
                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -537,68 +542,86 @@ const Admin: React.FC<AdminProps> = ({
               )}
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                 {services.map((s, idx) => (
-                    <div key={idx} className="bg-black/40 border border-white/5 p-8 rounded-3xl space-y-6 group relative">
-                       <div className="absolute top-4 right-4 flex items-center gap-2">
-                          <span className="text-[8px] font-bold text-slate-700 uppercase tracking-widest">Entry Cipher: {idx}</span>
-                          <button onClick={() => onUpdateServices(services.filter((_, i) => i !== idx))} className="text-[9px] font-bold text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity uppercase tracking-widest">Delete</button>
-                       </div>
-                       
-                       <div className="space-y-4">
-                          <div className="space-y-1">
-                            <label className="text-[8px] font-bold text-slate-600 uppercase tracking-widest ml-1">Service Title</label>
-                            <input className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-lg font-display font-bold text-white outline-none focus:border-blue-500/50 transition-all" value={s.name} onChange={(e) => {
-                               const updated = [...services];
-                               updated[idx].name = e.target.value;
-                               onUpdateServices(updated);
-                            }} />
-                          </div>
-
-                          <div className="space-y-1">
-                            <label className="text-[8px] font-bold text-slate-600 uppercase tracking-widest ml-1">Treatment Description</label>
-                            <textarea className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs text-slate-400 outline-none h-24 resize-none focus:border-blue-500/50 transition-all" value={s.desc} onChange={(e) => {
-                               const updated = [...services];
-                               updated[idx].desc = e.target.value;
-                               onUpdateServices(updated);
-                            }} />
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-1">
-                               <label className="text-[8px] font-bold text-slate-600 uppercase tracking-widest ml-1">Investment (Price)</label>
-                               <input className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs text-white outline-none focus:border-blue-500/50 transition-all" value={s.price} onChange={(e) => {
-                                  const updated = [...services];
-                                  updated[idx].price = e.target.value;
-                                  onUpdateServices(updated);
-                               }} />
+                 {services.map((s, idx) => {
+                    const isVisible = s.isVisible !== false;
+                    return (
+                      <div key={idx} className={`bg-black/40 border transition-all duration-500 p-8 rounded-3xl space-y-6 group relative ${!isVisible ? 'border-rose-500/20 bg-rose-500/5' : 'border-white/5'}`}>
+                         <div className="absolute top-6 right-6 flex items-center gap-3 z-10">
+                            <div className="flex flex-col items-end">
+                               <label className="text-[8px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Public Visibility</label>
+                               <button 
+                                onClick={() => toggleServiceVisibility(idx)} 
+                                className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all duration-300 ${!isVisible ? 'bg-rose-900/40 border-rose-500/50 text-rose-400' : 'bg-blue-600/20 border-blue-500/50 text-blue-400 shadow-[0_0_15px_rgba(37,99,235,0.2)]'}`}
+                               >
+                                  <span className={`w-1.5 h-1.5 rounded-full ${!isVisible ? 'bg-rose-500' : 'bg-blue-500 animate-pulse'}`}></span>
+                                  <span className="text-[9px] font-bold uppercase tracking-widest">{isVisible ? 'Live' : 'Paused'}</span>
+                               </button>
                             </div>
+                         </div>
+                         
+                         <div className="space-y-4 pt-2">
                             <div className="space-y-1">
-                               <label className="text-[8px] font-bold text-slate-600 uppercase tracking-widest ml-1">Market Category</label>
-                               <input className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs text-white outline-none focus:border-blue-500/50 transition-all" value={s.category} onChange={(e) => {
-                                  const updated = [...services];
-                                  updated[idx].category = e.target.value;
-                                  onUpdateServices(updated);
-                               }} />
+                              <label className="text-[8px] font-bold text-slate-600 uppercase tracking-widest ml-1">Service Title</label>
+                              <div className="flex items-center gap-3">
+                                 <input className={`flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-lg font-display font-bold outline-none focus:border-blue-500/50 transition-all ${!isVisible ? 'text-slate-500' : 'text-white'}`} value={s.name} onChange={(e) => {
+                                    const updated = [...services];
+                                    updated[idx].name = e.target.value;
+                                    onUpdateServices(updated);
+                                 }} />
+                                 {!isVisible && <span className="px-2 py-1 rounded bg-rose-500/10 text-rose-500 text-[8px] font-bold uppercase tracking-widest border border-rose-500/20">Hidden from Website</span>}
+                              </div>
                             </div>
-                          </div>
 
-                          <div className="space-y-2">
-                             <div className="flex items-center justify-between px-1">
-                                <label className="text-[8px] font-bold text-slate-600 uppercase tracking-widest">Full Specifications</label>
-                                <button onClick={() => handleAddServiceDetail(idx)} className="text-[8px] font-bold text-blue-500 uppercase">+ Add</button>
-                             </div>
-                             <div className="space-y-2">
-                                {s.details.map((detail, dIdx) => (
-                                   <div key={dIdx} className="flex gap-2">
-                                      <input className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-[10px] text-slate-400 outline-none" value={detail} onChange={(e) => handleUpdateServiceDetail(idx, dIdx, e.target.value)} />
-                                      <button onClick={() => handleRemoveServiceDetail(idx, dIdx)} className="text-rose-500 text-xs">×</button>
-                                   </div>
-                                ))}
-                             </div>
-                          </div>
-                       </div>
-                    </div>
-                 ))}
+                            <div className="space-y-1">
+                              <label className="text-[8px] font-bold text-slate-600 uppercase tracking-widest ml-1">Treatment Description</label>
+                              <textarea className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs text-slate-400 outline-none h-24 resize-none focus:border-blue-500/50 transition-all" value={s.desc} onChange={(e) => {
+                                 const updated = [...services];
+                                 updated[idx].desc = e.target.value;
+                                 onUpdateServices(updated);
+                              }} />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-1">
+                                 <label className="text-[8px] font-bold text-slate-600 uppercase tracking-widest ml-1">Investment (Price)</label>
+                                 <input className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs text-white outline-none focus:border-blue-500/50 transition-all font-mono" value={s.price} onChange={(e) => {
+                                    const updated = [...services];
+                                    updated[idx].price = e.target.value;
+                                    onUpdateServices(updated);
+                                 }} />
+                              </div>
+                              <div className="space-y-1">
+                                 <label className="text-[8px] font-bold text-slate-600 uppercase tracking-widest ml-1">Market Category</label>
+                                 <input className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs text-white outline-none focus:border-blue-500/50 transition-all" value={s.category} onChange={(e) => {
+                                    const updated = [...services];
+                                    updated[idx].category = e.target.value;
+                                    onUpdateServices(updated);
+                                 }} />
+                              </div>
+                            </div>
+
+                            <div className="space-y-2">
+                               <div className="flex items-center justify-between px-1">
+                                  <label className="text-[8px] font-bold text-slate-600 uppercase tracking-widest">Full Specifications</label>
+                                  <button onClick={() => handleAddServiceDetail(idx)} className="text-[8px] font-bold text-blue-500 uppercase">+ Add</button>
+                               </div>
+                               <div className="space-y-2">
+                                  {s.details.map((detail, dIdx) => (
+                                     <div key={dIdx} className="flex gap-2">
+                                        <input className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-[10px] text-slate-400 outline-none" value={detail} onChange={(e) => handleUpdateServiceDetail(idx, dIdx, e.target.value)} />
+                                        <button onClick={() => handleRemoveServiceDetail(idx, dIdx)} className="text-rose-500 text-xs">×</button>
+                                     </div>
+                                  ))}
+                               </div>
+                            </div>
+                            <div className="pt-2 flex justify-between items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                               <p className="text-[8px] font-bold text-slate-700 uppercase tracking-widest">Entry Cipher: {idx}</p>
+                               <button onClick={() => onUpdateServices(services.filter((_, i) => i !== idx))} className="text-[9px] font-bold text-rose-500 hover:text-rose-400 uppercase tracking-widest">Delete Program</button>
+                            </div>
+                         </div>
+                      </div>
+                    );
+                 })}
               </div>
            </section>
         </div>
@@ -615,7 +638,6 @@ const Admin: React.FC<AdminProps> = ({
                  </div>
               </div>
               
-              {/* Hero Section Management */}
               <div className="space-y-8 bg-black/40 p-8 rounded-[2rem] border border-white/5">
                  <h4 className="text-[10px] font-bold text-blue-500 uppercase tracking-[0.3em] mb-4">Hero Interface</h4>
                  <div className="space-y-2">
@@ -640,7 +662,6 @@ const Admin: React.FC<AdminProps> = ({
                  </div>
               </div>
 
-              {/* Stats Management */}
               <div className="space-y-8 bg-black/40 p-8 rounded-[2rem] border border-white/5">
                 <h4 className="text-[10px] font-bold text-blue-500 uppercase tracking-[0.3em] mb-4">Market Stats Archive</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -667,7 +688,6 @@ const Admin: React.FC<AdminProps> = ({
                 </div>
               </div>
 
-              {/* Signature Services Management */}
               <div className="space-y-8 bg-black/40 p-8 rounded-[2rem] border border-white/5">
                 <h4 className="text-[10px] font-bold text-blue-500 uppercase tracking-[0.3em] mb-4">Signature Programs Content</h4>
                 <div className="grid grid-cols-1 gap-4">

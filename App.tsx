@@ -67,35 +67,40 @@ const INITIAL_SERVICES: WorkshopService[] = [
     price: 'From 200 PLN', 
     desc: 'Professional multi-stage hand wash using the two-bucket method.',
     category: 'Essential Care',
-    details: ['PH-neutral snow foam pre-wash', 'Iron and tar decontamination', 'Safe hand dry', 'Tire dressing']
+    details: ['PH-neutral snow foam pre-wash', 'Iron and tar decontamination', 'Safe hand dry', 'Tire dressing'],
+    isVisible: true
   },
   { 
     name: 'Interior Clean', 
     price: 'From 250 PLN', 
     desc: 'Deep vacuuming and steam cleaning of all hard surfaces.',
     category: 'Essential Care',
-    details: ['Deep extraction of carpets', 'Dashboard sanitized', 'Interior glass polished', 'Odor neutralization']
+    details: ['Deep extraction of carpets', 'Dashboard sanitized', 'Interior glass polished', 'Odor neutralization'],
+    isVisible: true
   },
   { 
     name: 'Full Valet', 
     price: 'From 700 PLN', 
     desc: 'Our comprehensive signature treatment for total vehicle rejuvenation.',
     category: 'Premium Restoration',
-    details: ['Clay bar treatment', 'High-grade Carnauba wax', 'Exhaust tips polished', 'Leather ceramic coating']
+    details: ['Clay bar treatment', 'High-grade Carnauba wax', 'Exhaust tips polished', 'Leather ceramic coating'],
+    isVisible: true
   },
   { 
     name: 'Paint Polish', 
     price: 'From 1,200 PLN', 
     desc: 'Machine enhancement to restore deep gloss and remove surface imperfections.',
     category: 'Premium Restoration',
-    details: ['Single-stage DA polishing', 'Light swirl removal', 'Surface degreasing', 'Paint depth measurement']
+    details: ['Single-stage DA polishing', 'Light swirl removal', 'Surface degreasing', 'Paint depth measurement'],
+    isVisible: true
   },
   { 
     name: 'Engine Bay Detail', 
     price: '400 PLN', 
     desc: 'Safe cleaning and dressing of the engine compartment.',
     category: 'Premium Restoration',
-    details: ['Steam cleaning of components', 'Electrical protection', 'Plastic & rubber dressing', 'Aluminum polishing']
+    details: ['Steam cleaning of components', 'Electrical protection', 'Plastic & rubber dressing', 'Aluminum polishing'],
+    isVisible: true
   }
 ];
 

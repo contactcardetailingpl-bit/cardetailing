@@ -58,8 +58,10 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
 
   const priceCalculation = useMemo(() => {
     const parsePrice = (priceStr: string) => parseInt(priceStr.replace(/[^0-9]/g, '')) || 0;
+    
+    // STRICT FILTER: Only consider services that are marked visible in the registry
     const items = serviceRegistry
-      .filter(s => selectedServices.includes(s.name))
+      .filter(s => selectedServices.includes(s.name) && s.isVisible !== false)
       .map(s => ({ name: s.name, price: parsePrice(s.price) }));
     
     const subtotalValue = items.reduce((acc, s) => acc + s.price, 0);
@@ -112,7 +114,7 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
         from_name: name,
         customer_name: name,
         vehicle: car,
-        services_list: selectedServices.join(', '),
+        services_list: lineItems.map(li => li.name).join(', '),
         booking_date: selectedDate,
         time_slot: selectedSlotInfo?.label || 'Not Selected',
         total_price: `${totalPrice} PLN`,
@@ -177,7 +179,7 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
       setStatusMsg('Generating Detailing Strategy...');
       let aiSummary = "Restore paint depth, apply ceramic protection, and sanitize interior cabin.";
       try {
-        const conversationText = `Client: ${name}, Vehicle: ${car}, Services: ${selectedServices.join(', ')}`;
+        const conversationText = `Client: ${name}, Vehicle: ${car}, Services: ${lineItems.map(li => li.name).join(', ')}`;
         aiSummary = await summarizeInquiry(conversationText);
       } catch (aiErr) {
         console.warn("AI Summarization failed, using default.", aiErr);
@@ -187,7 +189,7 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
       onAddAppointment({
         id: Math.random().toString(36).substr(2, 9),
         name, email: targetEmail, car, notes,
-        services: [...selectedServices],
+        services: lineItems.map(li => li.name),
         aiSummary,
         status: 'PENDING',
         timestamp: Date.now()
@@ -258,16 +260,16 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
               </div>
               <div className="space-y-4">
                  <label className="text-[9px] font-bold text-slate-500 uppercase tracking-[0.2em] block mb-2">Selected Programs</label>
-                 {selectedServices.length === 0 ? (
+                 {lineItems.length === 0 ? (
                     <div className="p-4 rounded-xl border border-dashed border-white/10 text-center">
-                        <p className="text-xs text-slate-600 italic">No services selected.</p>
+                        <p className="text-xs text-slate-600 italic">No available services selected.</p>
                     </div>
                  ) : (
                     <div className="space-y-2">
-                       {selectedServices.map((service, i) => (
+                       {lineItems.map((item, i) => (
                           <div key={i} className="flex items-center justify-between bg-white/5 p-4 rounded-xl border border-white/5 group">
-                             <span className="text-xs font-bold text-slate-300 uppercase tracking-tight">{service}</span>
-                             <button onClick={() => onToggleService(service)} className="text-slate-600 hover:text-rose-500 text-xs">✕</button>
+                             <span className="text-xs font-bold text-slate-300 uppercase tracking-tight">{item.name}</span>
+                             <button onClick={() => onToggleService(item.name)} className="text-slate-600 hover:text-rose-500 text-xs">✕</button>
                           </div>
                        ))}
                     </div>

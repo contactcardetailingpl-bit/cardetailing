@@ -178,6 +178,8 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
       services: lineItems.map(li => li.name),
       aiSummary,
       status: 'PENDING',
+      scheduledDate: selectedDate,
+      scheduledSlot: selectedTimeSlot,
       timestamp: Date.now()
     });
   };

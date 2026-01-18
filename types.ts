@@ -48,6 +48,8 @@ export interface Appointment {
   services: string[];
   aiSummary: string;
   status: 'PENDING' | 'CONFIRMED' | 'COMPLETED';
+  scheduledDate: string; // YYYY-MM-DD
+  scheduledSlot: string; // morning, afternoon, evening
   timestamp: number;
 }
 

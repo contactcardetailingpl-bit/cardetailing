@@ -101,23 +101,19 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
     setIsProcessing(true);
     setStatusMsg('Synchronizing Studio Database...');
 
+    // We execute the email protocols but don't let a failure block the Stripe redirect
     try {
-      // 1. Send Email Protocols (Confirming lead data before the user leaves our site)
+      // 1. Send Email Protocols and handle AI summary in parallel
       await handleEmailProtocols();
-
-      // 2. Redirect to the User's specific Stripe Payment Link
-      setStatusMsg('Redirecting to Stripe Secure Portal...');
-      
-      // We wait 1 second so the user can see the status message before redirection
-      setTimeout(() => {
-        window.location.href = STRIPE_CHECKOUT_URL;
-      }, 1200);
-
     } catch (err) {
-      console.error(err);
-      alert("System sync failed. Please check your internet connection.");
-      setIsProcessing(false);
+      console.warn("Email protocol failed (likely configuration issue), proceeding to payment anyway:", err);
     }
+
+    // 2. Final Redirection to your Stripe Product Link
+    setStatusMsg('Finalizing Secure Redirection...');
+    setTimeout(() => {
+      window.location.href = STRIPE_CHECKOUT_URL;
+    }, 1000);
   };
 
   const handleEmailProtocols = async () => {
@@ -141,22 +137,29 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
     const studioPayload = { ...sharedContext, to_email: STUDIO_EMAIL };
     const customerPayload = { ...sharedContext, to_email: targetEmail };
 
-    setStatusMsg('Dispatching Studio Protocol...');
-    await window.emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_STUDIO_TEMPLATE_ID, studioPayload);
-    
-    setStatusMsg('Sending Client Confirmation...');
-    if (EMAILJS_CUSTOMER_TEMPLATE_ID) {
-      await window.emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_CUSTOMER_TEMPLATE_ID, customerPayload);
+    // Try EmailJS dispatch
+    if (window.emailjs) {
+      try {
+        await window.emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_STUDIO_TEMPLATE_ID, studioPayload);
+        if (EMAILJS_CUSTOMER_TEMPLATE_ID) {
+          await window.emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_CUSTOMER_TEMPLATE_ID, customerPayload);
+        }
+      } catch (e) {
+        console.error("EmailJS Service Error:", e);
+      }
     }
 
-    setStatusMsg('Generating Detailing Strategy...');
+    // Generate AI Summary for local state/registry
     let aiSummary = "Professional restoration planned for " + car;
     try {
       const conversationText = `Client: ${name}, Vehicle: ${car}, Services: ${lineItems.map(li => li.name).join(', ')}`;
       aiSummary = await summarizeInquiry(conversationText);
-    } catch (e) {}
+    } catch (e) {
+      console.warn("AI Summarization failed:", e);
+    }
     setSummary(aiSummary);
 
+    // Register appointment in local storage/app state
     onAddAppointment({
       id: Math.random().toString(36).substr(2, 9),
       name, email: targetEmail, car, notes,
@@ -294,8 +297,8 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
 
                   <div className="bg-black/40 p-8 rounded-[2.5rem] border border-white/5 space-y-6">
                       <div className="flex items-center justify-between text-xs font-bold uppercase tracking-widest">
-                        <span className="text-slate-500">Product Mapping</span>
-                        <span className="text-blue-500 font-mono text-[9px]">{STRIPE_PRODUCT_ID}</span>
+                        <span className="text-slate-500">Stripe Product Link</span>
+                        <span className="text-blue-500 font-mono text-[9px]">Authorized</span>
                       </div>
                       <div className="flex items-center justify-between text-xs font-bold uppercase tracking-widest">
                         <span className="text-slate-500">Booking Date</span>

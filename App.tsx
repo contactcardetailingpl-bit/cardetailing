@@ -11,13 +11,15 @@ import Admin from './components/Admin';
 import Contact from './components/Contact';
 import Logo from './components/Logo';
 import Tour from './components/Tour';
+import Confirmation from './components/Confirmation';
 
 const STORAGE_KEYS = {
   SERVICES: 'cdpl_services_v1',
   MEDIA: 'cdpl_media_v4',
   HOMEPAGE: 'cdpl_homepage_v1',
   USERS: 'cdpl_users_v1',
-  APPOINTMENTS: 'cdpl_appointments_v2'
+  APPOINTMENTS: 'cdpl_appointments_v2',
+  LAST_BOOKING: 'cdpl_last_booking_v1'
 };
 
 const DEFAULT_USERS: WorkshopUser[] = [
@@ -68,7 +70,9 @@ const INITIAL_SERVICES: WorkshopService[] = [
     desc: 'Professional multi-stage hand wash using the two-bucket method.',
     category: 'Essential Care',
     details: ['PH-neutral snow foam pre-wash', 'Iron and tar decontamination', 'Safe hand dry', 'Tire dressing'],
-    isVisible: true
+    isVisible: true,
+    stripeProductId: 'prod_TlGVrwRoBOOb48',
+    stripeUrl: 'https://buy.stripe.com/test_fZu00k5qQ8uIgUT8KQ5wI00'
   },
   { 
     name: 'Interior Clean', 
@@ -76,7 +80,9 @@ const INITIAL_SERVICES: WorkshopService[] = [
     desc: 'Deep vacuuming and steam cleaning of all hard surfaces.',
     category: 'Essential Care',
     details: ['Deep extraction of carpets', 'Dashboard sanitized', 'Interior glass polished', 'Odor neutralization'],
-    isVisible: true
+    isVisible: true,
+    stripeProductId: 'prod_TlGXDPOgnl1E9n',
+    stripeUrl: 'https://buy.stripe.com/test_fZu00k5qQ8uIgUT8KQ5wI00'
   },
   { 
     name: 'Full Valet', 
@@ -84,7 +90,9 @@ const INITIAL_SERVICES: WorkshopService[] = [
     desc: 'Our comprehensive signature treatment for total vehicle rejuvenation.',
     category: 'Premium Restoration',
     details: ['Clay bar treatment', 'High-grade Carnauba wax', 'Exhaust tips polished', 'Leather ceramic coating'],
-    isVisible: true
+    isVisible: true,
+    stripeProductId: 'prod_TlGWVmyaqUHrMu',
+    stripeUrl: 'https://buy.stripe.com/test_fZu00k5qQ8uIgUT8KQ5wI00'
   },
   { 
     name: 'Paint Polish', 
@@ -92,7 +100,9 @@ const INITIAL_SERVICES: WorkshopService[] = [
     desc: 'Machine enhancement to restore deep gloss and remove surface imperfections.',
     category: 'Premium Restoration',
     details: ['Single-stage DA polishing', 'Light swirl removal', 'Surface degreasing', 'Paint depth measurement'],
-    isVisible: true
+    isVisible: true,
+    stripeProductId: 'prod_TlGSfM8VtPsuLB',
+    stripeUrl: 'https://buy.stripe.com/test_fZu00k5qQ8uIgUT8KQ5wI00'
   },
   { 
     name: 'Engine Bay Detail', 
@@ -100,7 +110,9 @@ const INITIAL_SERVICES: WorkshopService[] = [
     desc: 'Safe cleaning and dressing of the engine compartment.',
     category: 'Premium Restoration',
     details: ['Steam cleaning of components', 'Electrical protection', 'Plastic & rubber dressing', 'Aluminum polishing'],
-    isVisible: true
+    isVisible: true,
+    stripeProductId: 'prod_TlGXhyW2wBYm5I',
+    stripeUrl: 'https://buy.stripe.com/test_fZu00k5qQ8uIgUT8KQ5wI00'
   }
 ];
 
@@ -145,6 +157,16 @@ const App: React.FC = () => {
     const saved = localStorage.getItem(STORAGE_KEYS.APPOINTMENTS);
     return saved ? JSON.parse(saved) : [];
   });
+
+  // Detect Stripe Success Redirect
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('success') === 'true') {
+      setView(ViewMode.CONFIRMATION);
+      // Clean up the URL without refreshing
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.MEDIA, JSON.stringify(workshopMedia));
@@ -196,7 +218,6 @@ const App: React.FC = () => {
 
   const handleAddAppointment = (appt: Appointment) => {
     setAppointments(prev => [appt, ...prev]);
-    // FIX: Clear the selected services after the booking is confirmed
     setSelectedServices([]);
   };
 
@@ -233,6 +254,8 @@ const App: React.FC = () => {
           onAddAppointment={handleAddAppointment} 
           serviceRegistry={workshopServices}
         />;
+      case ViewMode.CONFIRMATION:
+        return <Confirmation onNavigate={setView} />;
       case ViewMode.ADMIN:
         return <Admin 
           services={workshopServices} 

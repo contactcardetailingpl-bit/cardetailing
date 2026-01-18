@@ -54,6 +54,8 @@ const Admin: React.FC<AdminProps> = ({
   const [newServicePrice, setNewServicePrice] = useState('');
   const [newServiceDesc, setNewServiceDesc] = useState('');
   const [newServiceCat, setNewServiceCat] = useState('');
+  const [newStripeId, setNewStripeId] = useState('');
+  const [newStripeUrl, setNewStripeUrl] = useState('');
 
   // New User local state
   const [newUsername, setNewUsername] = useState('');
@@ -171,19 +173,22 @@ const Admin: React.FC<AdminProps> = ({
       desc: newServiceDesc,
       category: newServiceCat,
       details: [],
-      isVisible: true
+      isVisible: true,
+      stripeProductId: newStripeId,
+      stripeUrl: newStripeUrl
     };
     onUpdateServices([...services, newService]);
     setNewServiceName('');
     setNewServicePrice('');
     setNewServiceDesc('');
     setNewServiceCat('');
+    setNewStripeId('');
+    setNewStripeUrl('');
     setShowAddService(false);
   };
 
   const toggleServiceVisibility = (idx: number) => {
     const updated = [...services];
-    // Default to true if undefined
     const currentVisibility = updated[idx].isVisible === undefined ? true : updated[idx].isVisible;
     updated[idx].isVisible = !currentVisibility;
     onUpdateServices(updated);
@@ -362,14 +367,14 @@ const Admin: React.FC<AdminProps> = ({
                  <div className="w-12 h-12 rounded-2xl bg-blue-600/10 flex items-center justify-center text-xl">🖼️</div>
                  <div>
                     <h3 className="text-2xl font-display font-bold text-white uppercase tracking-tight">Portfolio Manager</h3>
-                    <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Upload or edit studio media assets from device camera roll</p>
+                    <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Upload or edit studio media assets</p>
                  </div>
               </div>
 
               {!editingMedia ? (
                 <form onSubmit={handleAddMediaSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-6 bg-black/40 p-8 rounded-3xl border border-white/5">
                   <div className="md:col-span-2 space-y-2">
-                      <label className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Device File (Photo/Video)</label>
+                      <label className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Device File</label>
                       <input ref={mediaFileRef} type="file" accept="image/*,video/*" className="w-full bg-[#05070a] border border-white/10 rounded-xl px-5 py-2.5 text-white text-xs file:bg-blue-600 file:border-none file:text-white file:text-[9px] file:uppercase file:font-bold file:px-3 file:py-1 file:rounded-full file:mr-4 file:cursor-pointer" />
                   </div>
                   <div className="space-y-2">
@@ -395,7 +400,7 @@ const Admin: React.FC<AdminProps> = ({
                     <button type="button" onClick={() => setEditingMedia(null)} className="text-[9px] font-bold text-slate-500 uppercase">Cancel Edit</button>
                   </div>
                   <div className="md:col-span-2 space-y-2">
-                      <label className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Replace Media (Optional)</label>
+                      <label className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Replace Media</label>
                       <input ref={editMediaFileRef} type="file" accept="image/*,video/*" className="w-full bg-[#05070a] border border-white/10 rounded-xl px-5 py-2.5 text-white text-xs file:bg-blue-600 file:border-none file:text-white file:text-[9px] file:uppercase file:font-bold file:px-3 file:py-1 file:rounded-full file:mr-4 file:cursor-pointer" />
                   </div>
                   <div className="space-y-2">
@@ -449,20 +454,20 @@ const Admin: React.FC<AdminProps> = ({
                  <div className="w-12 h-12 rounded-2xl bg-blue-600/10 flex items-center justify-center text-xl">🔐</div>
                  <div>
                     <h3 className="text-2xl font-display font-bold text-white uppercase tracking-tight">Security Terminal</h3>
-                    <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Manage staff access and register new users</p>
+                    <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Manage staff access</p>
                  </div>
               </div>
 
               <form onSubmit={handleAddUser} className="bg-black/40 border border-white/5 p-8 rounded-[2rem] space-y-6">
-                 <h4 className="text-[10px] font-bold text-blue-500 uppercase tracking-widest">Register New Terminal User</h4>
+                 <h4 className="text-[10px] font-bold text-blue-500 uppercase tracking-widest">Register New User</h4>
                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="space-y-2">
-                        <label className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Terminal Username</label>
-                        <input required type="text" value={newUsername} onChange={(e) => setNewUsername(e.target.value)} className="w-full bg-[#05070a] border border-white/10 rounded-xl px-5 py-3 text-white text-xs" placeholder="e.g. staff_poz_02" />
+                        <label className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Username</label>
+                        <input required type="text" value={newUsername} onChange={(e) => setNewUsername(e.target.value)} className="w-full bg-[#05070a] border border-white/10 rounded-xl px-5 py-3 text-white text-xs" />
                     </div>
                     <div className="space-y-2">
                         <label className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Security Cipher</label>
-                        <input required type="password" value={newUserPassword} onChange={(e) => setNewUserPassword(e.target.value)} className="w-full bg-[#05070a] border border-white/10 rounded-xl px-5 py-3 text-white text-xs" placeholder="********" />
+                        <input required type="password" value={newUserPassword} onChange={(e) => setNewUserPassword(e.target.value)} className="w-full bg-[#05070a] border border-white/10 rounded-xl px-5 py-3 text-white text-xs" />
                     </div>
                     <div className="space-y-2">
                         <label className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Access Level</label>
@@ -485,11 +490,8 @@ const Admin: React.FC<AdminProps> = ({
                           <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center text-lg">👤</div>
                           <div>
                              <p className="text-white font-bold text-sm tracking-tight">{u.username}</p>
-                             <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">{u.role} Account • Created {new Date(u.createdAt).toLocaleDateString()}</p>
+                             <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">{u.role} Account</p>
                           </div>
-                       </div>
-                       <div className="flex items-center gap-2">
-                          <span className="text-[9px] font-bold text-emerald-500 uppercase tracking-widest">Terminal Active</span>
                        </div>
                     </div>
                  ))}
@@ -506,7 +508,7 @@ const Admin: React.FC<AdminProps> = ({
                     <div className="w-12 h-12 rounded-2xl bg-blue-600/10 flex items-center justify-center text-xl">🛠️</div>
                     <div>
                        <h3 className="text-2xl font-display font-bold text-white uppercase tracking-tight">Service Registry</h3>
-                       <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Manage studio treatments and pricing</p>
+                       <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Manage studio treatments and Stripe integration</p>
                     </div>
                  </div>
                  <button onClick={() => setShowAddService(!showAddService)} className="px-6 py-3 bg-blue-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest">
@@ -533,6 +535,14 @@ const Admin: React.FC<AdminProps> = ({
                         <div className="space-y-2">
                             <label className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Category</label>
                             <input required type="text" value={newServiceCat} onChange={(e) => setNewServiceCat(e.target.value)} className="w-full bg-[#05070a] border border-white/10 rounded-xl px-5 py-3 text-white text-xs" placeholder="e.g. Restoration" />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Stripe Product ID</label>
+                            <input type="text" value={newStripeId} onChange={(e) => setNewStripeId(e.target.value)} className="w-full bg-[#05070a] border border-white/10 rounded-xl px-5 py-3 text-white text-xs" placeholder="prod_..." />
+                        </div>
+                        <div className="md:col-span-2 space-y-2">
+                            <label className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Stripe Payment Link</label>
+                            <input type="text" value={newStripeUrl} onChange={(e) => setNewStripeUrl(e.target.value)} className="w-full bg-[#05070a] border border-white/10 rounded-xl px-5 py-3 text-white text-xs" placeholder="https://buy.stripe.com/..." />
                         </div>
                     </div>
                     <div className="flex justify-end">
@@ -568,22 +578,12 @@ const Admin: React.FC<AdminProps> = ({
                                     updated[idx].name = e.target.value;
                                     onUpdateServices(updated);
                                  }} />
-                                 {!isVisible && <span className="px-2 py-1 rounded bg-rose-500/10 text-rose-500 text-[8px] font-bold uppercase tracking-widest border border-rose-500/20">Hidden from Website</span>}
                               </div>
-                            </div>
-
-                            <div className="space-y-1">
-                              <label className="text-[8px] font-bold text-slate-600 uppercase tracking-widest ml-1">Treatment Description</label>
-                              <textarea className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs text-slate-400 outline-none h-24 resize-none focus:border-blue-500/50 transition-all" value={s.desc} onChange={(e) => {
-                                 const updated = [...services];
-                                 updated[idx].desc = e.target.value;
-                                 onUpdateServices(updated);
-                              }} />
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">
                               <div className="space-y-1">
-                                 <label className="text-[8px] font-bold text-slate-600 uppercase tracking-widest ml-1">Investment (Price)</label>
+                                 <label className="text-[8px] font-bold text-slate-600 uppercase tracking-widest ml-1">Investment</label>
                                  <input className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs text-white outline-none focus:border-blue-500/50 transition-all font-mono" value={s.price} onChange={(e) => {
                                     const updated = [...services];
                                     updated[idx].price = e.target.value;
@@ -591,7 +591,7 @@ const Admin: React.FC<AdminProps> = ({
                                  }} />
                               </div>
                               <div className="space-y-1">
-                                 <label className="text-[8px] font-bold text-slate-600 uppercase tracking-widest ml-1">Market Category</label>
+                                 <label className="text-[8px] font-bold text-slate-600 uppercase tracking-widest ml-1">Category</label>
                                  <input className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs text-white outline-none focus:border-blue-500/50 transition-all" value={s.category} onChange={(e) => {
                                     const updated = [...services];
                                     updated[idx].category = e.target.value;
@@ -600,20 +600,32 @@ const Admin: React.FC<AdminProps> = ({
                               </div>
                             </div>
 
-                            <div className="space-y-2">
-                               <div className="flex items-center justify-between px-1">
-                                  <label className="text-[8px] font-bold text-slate-600 uppercase tracking-widest">Full Specifications</label>
-                                  <button onClick={() => handleAddServiceDetail(idx)} className="text-[8px] font-bold text-blue-500 uppercase">+ Add</button>
-                               </div>
-                               <div className="space-y-2">
-                                  {s.details.map((detail, dIdx) => (
-                                     <div key={dIdx} className="flex gap-2">
-                                        <input className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-[10px] text-slate-400 outline-none" value={detail} onChange={(e) => handleUpdateServiceDetail(idx, dIdx, e.target.value)} />
-                                        <button onClick={() => handleRemoveServiceDetail(idx, dIdx)} className="text-rose-500 text-xs">×</button>
-                                     </div>
-                                  ))}
+                            {/* Stripe Integration Block */}
+                            <div className="bg-blue-600/5 border border-blue-500/20 p-4 rounded-xl space-y-4">
+                               <h5 className="text-[9px] font-bold text-blue-500 uppercase tracking-widest flex items-center gap-2">
+                                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M13.911 11.144l-.794 3.708h2.642L15.004 18l3.125-5.321h-2.12l.9-3.535h-3zm-10.911 0l-.794 3.708h2.642L4.093 18l3.125-5.321h-2.12l.9-3.535h-3zm5.455 0l-.794 3.708h2.642L9.549 18l3.125-5.321h-2.12l.9-3.535h-3z"/></svg>
+                                  Stripe Integration
+                               </h5>
+                               <div className="space-y-3">
+                                  <div className="space-y-1">
+                                    <label className="text-[7px] font-bold text-slate-500 uppercase tracking-widest">Product ID (prod_...)</label>
+                                    <input className="w-full bg-black border border-white/10 rounded-lg px-3 py-1.5 text-[10px] text-white outline-none font-mono" value={s.stripeProductId || ''} onChange={(e) => {
+                                       const updated = [...services];
+                                       updated[idx].stripeProductId = e.target.value;
+                                       onUpdateServices(updated);
+                                    }} />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <label className="text-[7px] font-bold text-slate-500 uppercase tracking-widest">Payment Link URL</label>
+                                    <input className="w-full bg-black border border-white/10 rounded-lg px-3 py-1.5 text-[10px] text-white outline-none" value={s.stripeUrl || ''} onChange={(e) => {
+                                       const updated = [...services];
+                                       updated[idx].stripeUrl = e.target.value;
+                                       onUpdateServices(updated);
+                                    }} />
+                                  </div>
                                </div>
                             </div>
+
                             <div className="pt-2 flex justify-between items-center opacity-0 group-hover:opacity-100 transition-opacity">
                                <p className="text-[8px] font-bold text-slate-700 uppercase tracking-widest">Entry Cipher: {idx}</p>
                                <button onClick={() => onUpdateServices(services.filter((_, i) => i !== idx))} className="text-[9px] font-bold text-rose-500 hover:text-rose-400 uppercase tracking-widest">Delete Program</button>
@@ -634,7 +646,7 @@ const Admin: React.FC<AdminProps> = ({
                  <div className="w-12 h-12 rounded-2xl bg-blue-600/10 flex items-center justify-center text-xl">🏠</div>
                  <div>
                     <h3 className="text-2xl font-display font-bold text-white uppercase tracking-tight">Landing Page Terminal</h3>
-                    <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Complete system overhaul: Titles, stats and featured assets</p>
+                    <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Titles, stats and featured assets</p>
                  </div>
               </div>
               
@@ -655,7 +667,6 @@ const Admin: React.FC<AdminProps> = ({
                           <img src={homepageContent.heroImageUrl} className="w-full h-full object-cover" alt="Hero Preview" />
                        </div>
                        <div className="space-y-4">
-                          <p className="text-[10px] text-slate-400 leading-relaxed italic">Upload high-res automotive photography from your device roll.</p>
                           <input type="file" accept="image/*" onChange={(e) => handleHomepageImageUpload(e, 'heroImageUrl')} className="w-full text-xs text-slate-500 file:bg-blue-600 file:border-none file:text-white file:text-[9px] file:uppercase file:font-bold file:px-4 file:py-2 file:rounded-xl file:mr-4 file:cursor-pointer" />
                        </div>
                     </div>
@@ -663,7 +674,7 @@ const Admin: React.FC<AdminProps> = ({
               </div>
 
               <div className="space-y-8 bg-black/40 p-8 rounded-[2rem] border border-white/5">
-                <h4 className="text-[10px] font-bold text-blue-500 uppercase tracking-[0.3em] mb-4">Market Stats Archive</h4>
+                <h4 className="text-[10px] font-bold text-blue-500 uppercase tracking-[0.3em] mb-4">Market Stats</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {homepageContent.stats.map((stat, i) => (
                     <div key={i} className="flex gap-4 p-4 bg-white/5 rounded-2xl border border-white/5">
@@ -687,57 +698,12 @@ const Admin: React.FC<AdminProps> = ({
                   ))}
                 </div>
               </div>
-
-              <div className="space-y-8 bg-black/40 p-8 rounded-[2rem] border border-white/5">
-                <h4 className="text-[10px] font-bold text-blue-500 uppercase tracking-[0.3em] mb-4">Signature Programs Content</h4>
-                <div className="grid grid-cols-1 gap-4">
-                  <div className="space-y-2">
-                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Signature Section Title</label>
-                      <input className="w-full bg-black border border-white/10 rounded-xl px-5 py-4 text-white text-sm" value={homepageContent.servicesTitle} onChange={(e) => onUpdateHomepage({...homepageContent, servicesTitle: e.target.value})} />
-                  </div>
-                  <div className="space-y-2">
-                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Signature Section Subtitle</label>
-                      <textarea className="w-full bg-black border border-white/10 rounded-xl px-5 py-4 text-white text-sm h-24 resize-none" value={homepageContent.servicesSubtitle} onChange={(e) => onUpdateHomepage({...homepageContent, servicesSubtitle: e.target.value})} />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 gap-8 pt-6">
-                  {homepageContent.featuredServices.map((fs, i) => (
-                    <div key={i} className="bg-white/5 border border-white/5 rounded-3xl p-6 flex flex-col md:flex-row gap-8">
-                      <div className="w-full md:w-48 aspect-video md:aspect-square bg-black rounded-2xl overflow-hidden relative group">
-                        <img src={fs.imageUrl} className="w-full h-full object-cover" alt="" />
-                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center p-4">
-                          <input type="file" accept="image/*" onChange={(e) => handleHomepageImageUpload(e, 'featuredImage', i)} className="w-full text-[8px] file:bg-blue-600 file:border-none file:text-white file:text-[8px] file:px-2 file:py-1 file:rounded-full file:cursor-pointer" />
-                        </div>
-                      </div>
-                      <div className="flex-1 space-y-4">
-                        <div className="space-y-1">
-                          <label className="text-[8px] font-bold text-slate-600 uppercase tracking-widest ml-1">Featured Title</label>
-                          <input className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white text-sm font-bold" value={fs.title} onChange={(e) => {
-                            const updated = [...homepageContent.featuredServices];
-                            updated[i].title = e.target.value;
-                            onUpdateHomepage({...homepageContent, featuredServices: updated});
-                          }} />
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-[8px] font-bold text-slate-600 uppercase tracking-widest ml-1">Short Description</label>
-                          <textarea className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-slate-400 text-xs h-20 resize-none" value={fs.desc} onChange={(e) => {
-                            const updated = [...homepageContent.featuredServices];
-                            updated[i].desc = e.target.value;
-                            onUpdateHomepage({...homepageContent, featuredServices: updated});
-                          }} />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
            </section>
         </div>
       )}
 
       <div className="text-center mt-20">
-         <p className="text-[10px] font-bold text-slate-800 uppercase tracking-[0.5em]">Studio CMS Root Access v4.0 | Persistent Session Enabled</p>
+         <p className="text-[10px] font-bold text-slate-800 uppercase tracking-[0.5em]">Studio CMS Root Access v4.1 | Stripe Dynamic Routing</p>
       </div>
     </div>
   );

@@ -1,4 +1,3 @@
-
 export enum ViewMode {
   HOME = 'HOME',
   SERVICES = 'SERVICES',
@@ -7,7 +6,8 @@ export enum ViewMode {
   VISUALIZER = 'VISUALIZER',
   BOOKING = 'BOOKING',
   ADMIN = 'ADMIN',
-  CONTACT = 'CONTACT'
+  CONTACT = 'CONTACT',
+  CONFIRMATION = 'CONFIRMATION'
 }
 
 export interface WorkshopUser {
@@ -34,7 +34,9 @@ export interface WorkshopService {
   desc: string;
   category: string;
   details: string[];
-  isVisible?: boolean; // New property to toggle visibility on the public site
+  isVisible?: boolean;
+  stripeProductId?: string; // Stripe Product ID (e.g., prod_...)
+  stripeUrl?: string; // Stripe Checkout/Payment Link URL
 }
 
 export interface Appointment {

@@ -9,9 +9,8 @@ declare global {
   }
 }
 
-// --- STRIPE CONFIGURATION ---
-const STRIPE_CHECKOUT_URL = 'https://buy.stripe.com/test_fZu00k5qQ8uIgUT8KQ5wI00';
-const STRIPE_PRODUCT_ID = 'prod_TlGXhyW2wBYm5I';
+// --- FALLBACK STRIPE CONFIGURATION ---
+const DEFAULT_STRIPE_URL = 'https://buy.stripe.com/test_fZu00k5qQ8uIgUT8KQ5wI00';
 
 // --- EMAILJS CONFIGURATION ---
 const EMAILJS_SERVICE_ID = 'service_d2nl42u'; 
@@ -59,9 +58,16 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
 
   const priceCalculation = useMemo(() => {
     const parsePrice = (priceStr: string) => parseInt(priceStr.replace(/[^0-9]/g, '')) || 0;
-    const items = serviceRegistry
-      .filter(s => selectedServices.includes(s.name) && s.isVisible !== false)
-      .map(s => ({ name: s.name, price: parsePrice(s.price) }));
+    
+    // Find all matching services from the registry
+    const matchedServices = serviceRegistry.filter(s => selectedServices.includes(s.name) && s.isVisible !== false);
+    
+    const items = matchedServices.map(s => ({ 
+      name: s.name, 
+      price: parsePrice(s.price),
+      stripeId: s.stripeProductId,
+      stripeUrl: s.stripeUrl
+    }));
     
     const subtotalValue = items.reduce((acc, s) => acc + s.price, 0);
     const selectedSlot = TIME_SLOTS.find(t => t.id === selectedTimeSlot);
@@ -71,17 +77,23 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
     const deposit = Math.round(total * 0.20);
     const remaining = total - deposit;
 
+    // Identify primary checkout link (highest value or first selected)
+    const primaryCheckoutUrl = matchedServices.find(s => s.stripeUrl)?.stripeUrl || DEFAULT_STRIPE_URL;
+    const allStripeProductIds = matchedServices.map(s => s.stripeProductId).filter(Boolean).join(', ');
+
     return { 
       lineItems: items,
       surcharge: surchargeValue,
       surchargeLabel: selectedSlot?.label,
       totalPrice: total, 
       depositAmount: deposit, 
-      remainingBalance: remaining 
+      remainingBalance: remaining,
+      primaryCheckoutUrl,
+      allStripeProductIds
     };
   }, [selectedServices, serviceRegistry, selectedTimeSlot]);
 
-  const { lineItems, surcharge, surchargeLabel, totalPrice, depositAmount, remainingBalance } = priceCalculation;
+  const { lineItems, surcharge, surchargeLabel, totalPrice, depositAmount, remainingBalance, primaryCheckoutUrl, allStripeProductIds } = priceCalculation;
 
   const calendarDays = useMemo(() => {
     const days = [];
@@ -101,18 +113,21 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
     setIsProcessing(true);
     setStatusMsg('Synchronizing Studio Database...');
 
-    // We execute the email protocols but don't let a failure block the Stripe redirect
+    // Save session data to localStorage so we can display it on the confirmation page after redirect back
+    const selectedSlotInfo = TIME_SLOTS.find(t => t.id === selectedTimeSlot);
+    localStorage.setItem('cdpl_last_booking_v1', JSON.stringify({
+        name, car, date: selectedDate, slot: selectedSlotInfo?.label, amount: depositAmount, services: lineItems.map(l => l.name)
+    }));
+
     try {
-      // 1. Send Email Protocols and handle AI summary in parallel
       await handleEmailProtocols();
     } catch (err) {
-      console.warn("Email protocol failed (likely configuration issue), proceeding to payment anyway:", err);
+      console.warn("Email protocol failed, proceeding to payment anyway:", err);
     }
 
-    // 2. Final Redirection to your Stripe Product Link
     setStatusMsg('Finalizing Secure Redirection...');
     setTimeout(() => {
-      window.location.href = STRIPE_CHECKOUT_URL;
+      window.location.href = primaryCheckoutUrl;
     }, 1000);
   };
 
@@ -131,13 +146,12 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
       deposit_paid: `${depositAmount} PLN`,
       balance_due: `${remainingBalance} PLN`,
       studio_notes: notes || 'No additional notes provided.',
-      stripe_product_id: STRIPE_PRODUCT_ID
+      stripe_product_ids: allStripeProductIds || 'N/A'
     };
 
     const studioPayload = { ...sharedContext, to_email: STUDIO_EMAIL };
     const customerPayload = { ...sharedContext, to_email: targetEmail };
 
-    // Try EmailJS dispatch
     if (window.emailjs) {
       try {
         await window.emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_STUDIO_TEMPLATE_ID, studioPayload);
@@ -149,7 +163,6 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
       }
     }
 
-    // Generate AI Summary for local state/registry
     let aiSummary = "Professional restoration planned for " + car;
     try {
       const conversationText = `Client: ${name}, Vehicle: ${car}, Services: ${lineItems.map(li => li.name).join(', ')}`;
@@ -159,7 +172,6 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
     }
     setSummary(aiSummary);
 
-    // Register appointment in local storage/app state
     onAddAppointment({
       id: Math.random().toString(36).substr(2, 9),
       name, email: targetEmail, car, notes,
@@ -297,8 +309,8 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
 
                   <div className="bg-black/40 p-8 rounded-[2.5rem] border border-white/5 space-y-6">
                       <div className="flex items-center justify-between text-xs font-bold uppercase tracking-widest">
-                        <span className="text-slate-500">Stripe Product Link</span>
-                        <span className="text-blue-500 font-mono text-[9px]">Authorized</span>
+                        <span className="text-slate-500">Order Ref (IDs)</span>
+                        <span className="text-blue-500 font-mono text-[8px] max-w-[150px] truncate">{allStripeProductIds || 'N/A'}</span>
                       </div>
                       <div className="flex items-center justify-between text-xs font-bold uppercase tracking-widest">
                         <span className="text-slate-500">Booking Date</span>

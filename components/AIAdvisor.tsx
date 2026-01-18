@@ -102,16 +102,21 @@ const AIAdvisor: React.FC = () => {
       setMessages(prev => [...prev, assistantMessage]);
     } catch (error: any) {
       console.error("Chat Error Details:", error);
-      if (error.message?.includes("Requested entity was not found.")) {
+      
+      let errorMsg = 'I apologize, I lost connection to our detailing database. This often happens if the AI server is busy or the API key is not configured correctly.';
+      
+      if (error.message?.includes("API_KEY_INVALID")) {
+        errorMsg = "Detallier Alert: The API key provided is invalid. Please check your environment variables.";
+      } else if (error.message?.includes("Requested entity was not found.")) {
         setIsProUnlocked(false);
         setIsExpert(false);
-        alert("Session expired. Please re-select your Pro key.");
-      } else {
-        setMessages(prev => [...prev, { 
-          role: 'assistant', 
-          content: 'I apologize, I lost connection to our detailing database. This often happens if the AI server is busy. Please try again in a moment.' 
-        }]);
+        errorMsg = "Session expired or model restricted. Please re-select your Pro key or try the Standard plan.";
       }
+      
+      setMessages(prev => [...prev, { 
+        role: 'assistant', 
+        content: errorMsg 
+      }]);
     } finally {
       setIsTyping(false);
     }

@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type, GenerateContentResponse, Modality } from "@google/genai";
 import { Message } from "../types";
 
@@ -77,12 +78,10 @@ export const generateVisualizerImage = async (carModel: string, finishType: stri
 // General image generation using gemini-2.5-flash-image
 export const generateImage = async (prompt: string): Promise<string> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const finalPrompt = `${prompt}. Important: if a car is visible, it must feature a Polish standard registration plate (white background, black text, blue PL/EU strip).`;
-  
   const response = await ai.models.generateContent({
     model: 'gemini-2.5-flash-image',
     contents: {
-      parts: [{ text: finalPrompt }],
+      parts: [{ text: prompt }],
     },
     config: {
       imageConfig: {
@@ -103,36 +102,59 @@ export const generateImage = async (prompt: string): Promise<string> => {
   throw new Error("No image generated");
 };
 
+// Summary of detailing inquiry using gemini-3-flash-preview
+export const summarizeInquiry = async (text: string): Promise<string> => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const response = await ai.models.generateContent({
+    model: 'gemini-3-flash-preview',
+    contents: `Summarize the following car detailing request professionally for studio management: ${text}`,
+  });
+  return response.text || "Summary unavailable.";
+};
+
 // Detailing advisor chat with context history
 export const chatWithAdvisor = async (history: Message[], isExpert: boolean = false) => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const modelName = isExpert ? 'gemini-3-pro-preview' : 'gemini-3-flash-preview';
   
-  // Map history to Gemini API expected Content format
-  const contents = history.map(msg => ({
+  // CRITICAL: Gemini API multi-turn conversations MUST start with a 'user' role.
+  // We filter out any leading messages that are not from the 'user' (like our initial greeting).
+  let firstUserIndex = history.findIndex(m => m.role === 'user');
+  if (firstUserIndex === -1) {
+    // If no user messages yet, just send the system instruction prompt or a simple ping
+    firstUserIndex = history.length; 
+  }
+  
+  const validHistory = history.slice(firstUserIndex);
+  
+  const contents = validHistory.map(msg => ({
     role: msg.role === 'assistant' ? 'model' : 'user',
     parts: [{ text: msg.content }]
   }));
 
-  const response = await ai.models.generateContent({
-    model: modelName,
-    contents: contents,
-    config: {
-      systemInstruction: "You are the head detailer at CarDetailing.PL in Poznań. You are an expert in paint correction, ceramic coatings, and interior restoration. Provide professional advice tailored to the Polish market. Mention that you specialize in high-end vehicles with PL plates. Be concise but extremely knowledgeable.",
-      tools: isExpert ? [] : [{ googleSearch: {} }],
-      maxOutputTokens: isExpert ? 2048 : 1024,
-      thinkingConfig: isExpert ? { thinkingBudget: 1024 } : undefined
-    },
-  });
-  
-  const text = response.text || "I apologize, I could not generate a response.";
-  const candidates = response.candidates;
-  const grounding = candidates?.[0]?.groundingMetadata?.groundingChunks?.map((chunk: any) => ({
-    uri: chunk.web?.uri || "",
-    title: chunk.web?.title || ""
-  })).filter((c: any) => c.uri) || [];
+  try {
+    const response = await ai.models.generateContent({
+      model: modelName,
+      contents: contents,
+      config: {
+        systemInstruction: "You are the head detailer at CarDetailing.PL in Poznań. You are an expert in paint correction, ceramic coatings, and interior restoration. Provide professional advice tailored to the Polish market. Mention that you specialize in high-end vehicles with PL plates. Be concise but extremely knowledgeable.",
+        tools: [{ googleSearch: {} }],
+        maxOutputTokens: isExpert ? 2048 : 1024,
+      },
+    });
+    
+    const text = response.text || "I apologize, I could not generate a response.";
+    const candidates = response.candidates;
+    const grounding = candidates?.[0]?.groundingMetadata?.groundingChunks?.map((chunk: any) => ({
+      uri: chunk.web?.uri || "",
+      title: chunk.web?.title || ""
+    })).filter((c: any) => c.uri) || [];
 
-  return { text, grounding };
+    return { text, grounding };
+  } catch (err: any) {
+    console.error("Gemini API direct error:", err);
+    throw err;
+  }
 };
 
 // General search grounding chat for ChatSection
@@ -156,7 +178,7 @@ export const chatWithSearch = async (message: string) => {
   return { text, grounding };
 };
 
-// Expert speech generation using gemini-2.5-flash-preview-tts
+// Expert speech generation
 export const generateExpertSpeech = async (text: string): Promise<string> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const response = await ai.models.generateContent({
@@ -178,19 +200,6 @@ export const generateExpertSpeech = async (text: string): Promise<string> => {
   return base64Audio;
 };
 
-// Summarization task using gemini-3-flash-preview
-export const summarizeInquiry = async (conversation: string): Promise<string> => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: [{ role: 'user', parts: [{ text: `Summarize this detailing inquiry into a 3-bullet point restoration plan for a vehicle in Poland: ${conversation}` }] }],
-        config: {
-            responseMimeType: "text/plain"
-        }
-    });
-    return response.text || "";
-};
-
 // Video generation using Veo 3.1
 export const generateVideoVeo = async (prompt: string, onProgress: (msg: string) => void): Promise<string> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -208,7 +217,7 @@ export const generateVideoVeo = async (prompt: string, onProgress: (msg: string)
     }
   });
 
-  onProgress('Processing frames in the Poznań studio (this may take a minute)...');
+  onProgress('Processing frames in the Poznań studio...');
   while (!operation.done) {
     await new Promise(resolve => setTimeout(resolve, 10000));
     operation = await ai.operations.getVideosOperation({ operation: operation });

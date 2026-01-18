@@ -70,7 +70,7 @@ const Home: React.FC<HomeProps> = ({ content, onNavigate, onStartTour }) => {
           </p>
           <div className="flex flex-wrap justify-center gap-6">
             <button 
-              onClick={() => onNavigate(ViewMode.BOOKING)}
+              onClick={() => onNavigate(ViewMode.SERVICES)}
               className="px-10 py-5 bg-blue-600 text-white rounded font-bold uppercase tracking-widest hover:bg-blue-500 transition-all shadow-2xl shadow-blue-500/20"
             >
               Book Appointment

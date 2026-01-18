@@ -14,7 +14,7 @@ import Tour from './components/Tour';
 import Confirmation from './components/Confirmation';
 
 const STORAGE_KEYS = {
-  SERVICES: 'cdpl_services_v1',
+  SERVICES: 'cdpl_services_v3', // Incremented to v3 to force data refresh
   MEDIA: 'cdpl_media_v4',
   HOMEPAGE: 'cdpl_homepage_v1',
   USERS: 'cdpl_users_v1',
@@ -34,7 +34,7 @@ const DEFAULT_HOMEPAGE: HomepageContent = {
   servicesSubtitle: 'Our meticulous process ensures every square inch of your vehicle is treated with the highest level of care using world-class products and PL standards.',
   featuredServices: [
     { title: 'Full Valet', desc: 'Our comprehensive signature treatment. Combines deep interior sanitization with a thorough exterior decontamination.', imageUrl: 'https://images.unsplash.com/photo-1520340356584-f9917d1eea6f?auto=format&fit=crop&q=80&w=800' },
-    { title: 'Paint Polish', desc: 'Single-stage machine enhancement to remove light swirl marks and restore deep gloss to your paintwork.', imageUrl: 'https://images.unsplash.com/photo-1620939511593-299312d1cef4?auto=format&fit=crop&q=80&w=800' },
+    { title: 'Engine Bay Detail', desc: 'Safe precision cleaning and dressing of the engine compartment to showroom standards.', imageUrl: 'https://images.unsplash.com/photo-1486006920555-c77dcf18193c?auto=format&fit=crop&q=80&w=800' },
     { title: 'Interior Clean', desc: 'Deep steam cleaning and conditioning of all surfaces to restore that showroom smell and aesthetic.', imageUrl: 'https://images.unsplash.com/photo-1580273916550-e323be2ae537?auto=format&fit=crop&q=80&w=800' }
   ],
   stats: [
@@ -45,7 +45,6 @@ const DEFAULT_HOMEPAGE: HomepageContent = {
   ]
 };
 
-// Updated with newly provided Stripe URLs and Product IDs
 const INITIAL_SERVICES: WorkshopService[] = [
   { 
     name: 'Exterior Clean', 
@@ -76,16 +75,6 @@ const INITIAL_SERVICES: WorkshopService[] = [
     isVisible: true, 
     stripeProductId: 'prod_TogruchfF4tNg1', 
     stripeUrl: 'https://buy.stripe.com/test_8x26oIf1q26k6gf3qw5wI05' 
-  },
-  { 
-    name: 'Paint Polish', 
-    price: 'From 1,200 PLN', 
-    desc: 'Machine enhancement to restore deep gloss and remove surface imperfections.', 
-    category: 'Premium Restoration', 
-    details: ['Single-stage DA polishing', 'Light swirl removal', 'Surface degreasing', 'Paint depth measurement'], 
-    isVisible: true, 
-    stripeProductId: '', 
-    stripeUrl: '' 
   },
   { 
     name: 'Engine Bay Detail', 

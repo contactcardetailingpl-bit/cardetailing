@@ -51,7 +51,12 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
 
   const priceCalculation = useMemo(() => {
     const parsePrice = (priceStr: string) => parseInt(priceStr.replace(/[^0-9]/g, '')) || 0;
-    const matchedServices = serviceRegistry.filter(s => selectedServices.includes(s.name) && s.isVisible !== false);
+    
+    // Find matched services from registry based on selected names
+    const matchedServices = serviceRegistry.filter(s => 
+        selectedServices.includes(s.name) && 
+        s.isVisible !== false
+    );
     
     const items = matchedServices.map(s => ({ 
       name: s.name, 
@@ -68,9 +73,11 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
     const deposit = Math.round(total * 0.20);
     const remaining = total - deposit;
 
-    // Use URL of the "primary" (most expensive) service selected
-    const sortedItems = [...items].sort((a, b) => b.price - a.price);
-    const primaryCheckoutUrl = sortedItems[0]?.stripeUrl || '';
+    // Hardened logic to find the best Stripe URL available in the basket
+    // We sort by price to ensure the primary payment link reflects the most significant service
+    const itemsWithLinks = items.filter(item => item.stripeUrl && item.stripeUrl.trim() !== '');
+    const sortedByPrice = [...itemsWithLinks].sort((a, b) => b.price - a.price);
+    const primaryCheckoutUrl = sortedByPrice[0]?.stripeUrl || '';
 
     return { 
       lineItems: items,
@@ -101,12 +108,12 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
 
   const handleStripeCheckout = async () => {
     if (!primaryCheckoutUrl) {
-      alert("A checkout link is not configured for the selected services. Please contact the studio directly.");
+      alert("Verification Error: We couldn't locate a secure checkout link for these services. Please clear your browser cache or contact CarDetailing.PL directly via the Contact page.");
       return;
     }
 
     setIsProcessing(true);
-    setStatusMsg('Generating Secure Payment Link...');
+    setStatusMsg('Initializing Secure Studio Portal...');
 
     const apptId = Math.random().toString(36).substr(2, 9);
     const selectedSlotInfo = TIME_SLOTS.find(t => t.id === selectedTimeSlot);
@@ -137,14 +144,14 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
         timestamp: Date.now()
       });
 
-      // Finalize redirect
+      // Finalize redirect with slight delay for UX
       setStatusMsg('Redirecting to Stripe Security...');
       setTimeout(() => {
         window.location.href = primaryCheckoutUrl;
-      }, 800);
+      }, 1000);
     } catch (err) {
       setIsProcessing(false);
-      alert("Checkout failed. Please check your internet connection.");
+      alert("Checkout failed. Please check your internet connection and try again.");
     }
   };
 

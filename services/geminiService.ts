@@ -1,5 +1,5 @@
-
 import { GoogleGenAI, Type, GenerateContentResponse, Modality } from "@google/genai";
+import { Message } from "../types";
 
 // Standard encode function for bytes to base64 (from guidelines)
 export function encode(bytes: Uint8Array): string {
@@ -103,23 +103,29 @@ export const generateImage = async (prompt: string): Promise<string> => {
   throw new Error("No image generated");
 };
 
-// Detailing advisor chat with optional reasoning or search grounding
-export const chatWithAdvisor = async (message: string, isExpert: boolean = false) => {
+// Detailing advisor chat with context history
+export const chatWithAdvisor = async (history: Message[], isExpert: boolean = false) => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const modelName = isExpert ? 'gemini-3-pro-preview' : 'gemini-3-flash-preview';
   
+  // Map history to Gemini API expected Content format
+  const contents = history.map(msg => ({
+    role: msg.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: msg.content }]
+  }));
+
   const response = await ai.models.generateContent({
     model: modelName,
-    contents: message,
+    contents: contents,
     config: {
-      systemInstruction: "You are the head detailer at CarDetailing.PL in Poznań. You are an expert in paint correction, ceramic coatings, and interior restoration. Provide professional advice tailored to the Polish market. Mention that you specialize in high-end vehicles with PL plates.",
+      systemInstruction: "You are the head detailer at CarDetailing.PL in Poznań. You are an expert in paint correction, ceramic coatings, and interior restoration. Provide professional advice tailored to the Polish market. Mention that you specialize in high-end vehicles with PL plates. Be concise but extremely knowledgeable.",
       tools: isExpert ? [] : [{ googleSearch: {} }],
-      maxOutputTokens: isExpert ? 4000 : undefined,
-      thinkingConfig: isExpert ? { thinkingBudget: 2000 } : undefined
+      maxOutputTokens: isExpert ? 2048 : 1024,
+      thinkingConfig: isExpert ? { thinkingBudget: 1024 } : undefined
     },
   });
   
-  const text = response.text || "";
+  const text = response.text || "I apologize, I could not generate a response.";
   const candidates = response.candidates;
   const grounding = candidates?.[0]?.groundingMetadata?.groundingChunks?.map((chunk: any) => ({
     uri: chunk.web?.uri || "",
@@ -134,7 +140,7 @@ export const chatWithSearch = async (message: string) => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
-    contents: message,
+    contents: [{ role: 'user', parts: [{ text: message }] }],
     config: {
       tools: [{ googleSearch: {} }],
     },
@@ -177,7 +183,7 @@ export const summarizeInquiry = async (conversation: string): Promise<string> =>
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `Summarize this detailing inquiry into a 3-bullet point restoration plan for a vehicle in Poland: ${conversation}`,
+        contents: [{ role: 'user', parts: [{ text: `Summarize this detailing inquiry into a 3-bullet point restoration plan for a vehicle in Poland: ${conversation}` }] }],
         config: {
             responseMimeType: "text/plain"
         }

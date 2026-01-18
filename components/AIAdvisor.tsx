@@ -81,18 +81,19 @@ const AIAdvisor: React.FC = () => {
 
   const executePrompt = async (text: string) => {
     if (isTyping) return;
-    setInput(text);
-    await performChat(text);
+    const userMessage: Message = { role: 'user', content: text };
+    const updatedHistory = [...messages, userMessage];
+    setMessages(updatedHistory);
+    setInput('');
+    setIsTyping(true);
+    await performChat(updatedHistory);
   };
 
-  const performChat = async (msgText: string) => {
-    const userMessage: Message = { role: 'user', content: msgText };
-    setMessages(prev => [...prev, userMessage]);
-    setInput('');
+  const performChat = async (history: Message[]) => {
     setIsTyping(true);
 
     try {
-      const { text, grounding } = await chatWithAdvisor(msgText, isExpert);
+      const { text, grounding } = await chatWithAdvisor(history, isExpert);
       const assistantMessage: Message = { 
         role: 'assistant', 
         content: text, 
@@ -100,7 +101,7 @@ const AIAdvisor: React.FC = () => {
       };
       setMessages(prev => [...prev, assistantMessage]);
     } catch (error: any) {
-      console.error(error);
+      console.error("Chat Error Details:", error);
       if (error.message?.includes("Requested entity was not found.")) {
         setIsProUnlocked(false);
         setIsExpert(false);
@@ -108,7 +109,7 @@ const AIAdvisor: React.FC = () => {
       } else {
         setMessages(prev => [...prev, { 
           role: 'assistant', 
-          content: 'I apologize, I lost connection to our detailing database. Please try again in a moment.' 
+          content: 'I apologize, I lost connection to our detailing database. This often happens if the AI server is busy. Please try again in a moment.' 
         }]);
       }
     } finally {
@@ -119,7 +120,12 @@ const AIAdvisor: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isTyping) return;
-    performChat(input);
+    
+    const userMessage: Message = { role: 'user', content: input };
+    const updatedHistory = [...messages, userMessage];
+    setMessages(updatedHistory);
+    setInput('');
+    performChat(updatedHistory);
   };
 
   return (

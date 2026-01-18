@@ -9,7 +9,6 @@ declare global {
   }
 }
 
-const DEFAULT_STRIPE_URL = 'https://buy.stripe.com/test_fZu00k5qQ8uIgUT8KQ5wI00';
 const EMAILJS_SERVICE_ID = 'service_d2nl42u'; 
 const EMAILJS_PUBLIC_KEY = 'LHrgkITA0L-J7QOE0';
 const EMAILJS_STUDIO_TEMPLATE_ID = 'template_uxhva1n'; 
@@ -68,7 +67,10 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
     const total = subtotalValue + surchargeValue;
     const deposit = Math.round(total * 0.20);
     const remaining = total - deposit;
-    const primaryCheckoutUrl = matchedServices.find(s => s.stripeUrl)?.stripeUrl || DEFAULT_STRIPE_URL;
+
+    // Use URL of the "primary" (most expensive) service selected
+    const sortedItems = [...items].sort((a, b) => b.price - a.price);
+    const primaryCheckoutUrl = sortedItems[0]?.stripeUrl || '';
 
     return { 
       lineItems: items,
@@ -98,13 +100,18 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
   }, []);
 
   const handleStripeCheckout = async () => {
+    if (!primaryCheckoutUrl) {
+      alert("A checkout link is not configured for the selected services. Please contact the studio directly.");
+      return;
+    }
+
     setIsProcessing(true);
     setStatusMsg('Generating Secure Payment Link...');
 
     const apptId = Math.random().toString(36).substr(2, 9);
     const selectedSlotInfo = TIME_SLOTS.find(t => t.id === selectedTimeSlot);
     
-    // 1. Store pending state for redirect verification
+    // Store pending state for redirect verification
     localStorage.setItem('cdpl_pending_appt_v1', apptId);
     localStorage.setItem('cdpl_last_booking_v1', JSON.stringify({
         id: apptId,
@@ -118,7 +125,7 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
         aiSummary = await summarizeInquiry(conversationText);
       } catch (e) {}
 
-      // 2. Create local appointment record (PENDING)
+      // Create local appointment record (PENDING)
       onAddAppointment({
         id: apptId,
         name, email: email.trim(), car, notes,
@@ -130,7 +137,7 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
         timestamp: Date.now()
       });
 
-      // 3. Finalize redirect
+      // Finalize redirect
       setStatusMsg('Redirecting to Stripe Security...');
       setTimeout(() => {
         window.location.href = primaryCheckoutUrl;

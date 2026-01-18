@@ -45,12 +45,58 @@ const DEFAULT_HOMEPAGE: HomepageContent = {
   ]
 };
 
+// Updated with newly provided Stripe URLs and Product IDs
 const INITIAL_SERVICES: WorkshopService[] = [
-  { name: 'Exterior Clean', price: 'From 200 PLN', desc: 'Professional multi-stage hand wash using the two-bucket method.', category: 'Essential Care', details: ['PH-neutral snow foam pre-wash', 'Iron and tar decontamination', 'Safe hand dry', 'Tire dressing'], isVisible: true, stripeProductId: 'prod_TlGVrwRoBOOb48', stripeUrl: 'https://buy.stripe.com/test_fZu00k5qQ8uIgUT8KQ5wI00' },
-  { name: 'Interior Clean', price: 'From 250 PLN', desc: 'Deep vacuuming and steam cleaning of all hard surfaces.', category: 'Essential Care', details: ['Deep extraction of carpets', 'Dashboard sanitized', 'Interior glass polished', 'Odor neutralization'], isVisible: true, stripeProductId: 'prod_TlGXDPOgnl1E9n', stripeUrl: 'https://buy.stripe.com/test_fZu00k5qQ8uIgUT8KQ5wI00' },
-  { name: 'Full Valet', price: 'From 700 PLN', desc: 'Our comprehensive signature treatment for total vehicle rejuvenation.', category: 'Premium Restoration', details: ['Clay bar treatment', 'High-grade Carnauba wax', 'Exhaust tips polished', 'Leather ceramic coating'], isVisible: true, stripeProductId: 'prod_TlGWVmyaqUHrMu', stripeUrl: 'https://buy.stripe.com/test_fZu00k5qQ8uIgUT8KQ5wI00' },
-  { name: 'Paint Polish', price: 'From 1,200 PLN', desc: 'Machine enhancement to restore deep gloss and remove surface imperfections.', category: 'Premium Restoration', details: ['Single-stage DA polishing', 'Light swirl removal', 'Surface degreasing', 'Paint depth measurement'], isVisible: true, stripeProductId: 'prod_TlGSfM8VtPsuLB', stripeUrl: 'https://buy.stripe.com/test_fZu00k5qQ8uIgUT8KQ5wI00' },
-  { name: 'Engine Bay Detail', price: '400 PLN', desc: 'Safe cleaning and dressing of the engine compartment.', category: 'Premium Restoration', details: ['Steam cleaning of components', 'Electrical protection', 'Plastic & rubber dressing', 'Aluminum polishing'], isVisible: true, stripeProductId: 'prod_TlGXhyW2wBYm5I', stripeUrl: 'https://buy.stripe.com/test_fZu00k5qQ8uIgUT8KQ5wI00' }
+  { 
+    name: 'Exterior Clean', 
+    price: '360 PLN', 
+    desc: 'Professional multi-stage hand wash using the two-bucket method.', 
+    category: 'Essential Care', 
+    details: ['PH-neutral snow foam pre-wash', 'Iron and tar decontamination', 'Safe hand dry', 'Tire dressing'], 
+    isVisible: true, 
+    stripeProductId: 'prod_TogpWdlrjvTRzg', 
+    stripeUrl: 'https://buy.stripe.com/test_eVq00k6uU7qEeML3qw5wI07' 
+  },
+  { 
+    name: 'Interior Clean', 
+    price: '400 PLN', 
+    desc: 'Deep vacuuming and steam cleaning of all hard surfaces.', 
+    category: 'Essential Care', 
+    details: ['Deep extraction of carpets', 'Dashboard sanitized', 'Interior glass polished', 'Odor neutralization'], 
+    isVisible: true, 
+    stripeProductId: 'prod_Togqp9UkaNachx', 
+    stripeUrl: 'https://buy.stripe.com/test_3cI3cw4mM4esdIH3qw5wI06' 
+  },
+  { 
+    name: 'Full Valet', 
+    price: '850 PLN', 
+    desc: 'Our comprehensive signature treatment for total vehicle rejuvenation.', 
+    category: 'Premium Restoration', 
+    details: ['Clay bar treatment', 'High-grade Carnauba wax', 'Exhaust tips polished', 'Leather ceramic coating'], 
+    isVisible: true, 
+    stripeProductId: 'prod_TogruchfF4tNg1', 
+    stripeUrl: 'https://buy.stripe.com/test_8x26oIf1q26k6gf3qw5wI05' 
+  },
+  { 
+    name: 'Paint Polish', 
+    price: 'From 1,200 PLN', 
+    desc: 'Machine enhancement to restore deep gloss and remove surface imperfections.', 
+    category: 'Premium Restoration', 
+    details: ['Single-stage DA polishing', 'Light swirl removal', 'Surface degreasing', 'Paint depth measurement'], 
+    isVisible: true, 
+    stripeProductId: '', 
+    stripeUrl: '' 
+  },
+  { 
+    name: 'Engine Bay Detail', 
+    price: '450 PLN', 
+    desc: 'Safe cleaning and dressing of the engine compartment.', 
+    category: 'Premium Restoration', 
+    details: ['Steam cleaning of components', 'Electrical protection', 'Plastic & rubber dressing', 'Aluminum polishing'], 
+    isVisible: true, 
+    stripeProductId: 'prod_TogsIrVzLuR68y', 
+    stripeUrl: 'https://buy.stripe.com/test_4gM8wQ9H68uI7kj7GM5wI04' 
+  }
 ];
 
 const App: React.FC = () => {

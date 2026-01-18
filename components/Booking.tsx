@@ -9,15 +9,11 @@ declare global {
   }
 }
 
-// --- FALLBACK STRIPE CONFIGURATION ---
 const DEFAULT_STRIPE_URL = 'https://buy.stripe.com/test_fZu00k5qQ8uIgUT8KQ5wI00';
-
-// --- EMAILJS CONFIGURATION ---
 const EMAILJS_SERVICE_ID = 'service_d2nl42u'; 
 const EMAILJS_PUBLIC_KEY = 'LHrgkITA0L-J7QOE0';
 const EMAILJS_STUDIO_TEMPLATE_ID = 'template_uxhva1n'; 
 const EMAILJS_CUSTOMER_TEMPLATE_ID = 'template_ttzwbm7';
-
 const STUDIO_EMAIL = 'contactcardetailing.pl@gmail.com';
 
 const TIME_SLOTS = [
@@ -37,10 +33,8 @@ type BookingStep = 'details' | 'schedule' | 'payment';
 
 const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, onToggleService, onAddAppointment }) => {
   const [step, setStep] = useState<BookingStep>('details');
-  const [submitted, setSubmitted] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
-  const [summary, setSummary] = useState<string>("Initializing restoration protocol...");
   
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -58,8 +52,6 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
 
   const priceCalculation = useMemo(() => {
     const parsePrice = (priceStr: string) => parseInt(priceStr.replace(/[^0-9]/g, '')) || 0;
-    
-    // Find all matching services from the registry
     const matchedServices = serviceRegistry.filter(s => selectedServices.includes(s.name) && s.isVisible !== false);
     
     const items = matchedServices.map(s => ({ 
@@ -76,10 +68,7 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
     const total = subtotalValue + surchargeValue;
     const deposit = Math.round(total * 0.20);
     const remaining = total - deposit;
-
-    // Identify primary checkout link (highest value or first selected)
     const primaryCheckoutUrl = matchedServices.find(s => s.stripeUrl)?.stripeUrl || DEFAULT_STRIPE_URL;
-    const allStripeProductIds = matchedServices.map(s => s.stripeProductId).filter(Boolean).join(', ');
 
     return { 
       lineItems: items,
@@ -88,12 +77,11 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
       totalPrice: total, 
       depositAmount: deposit, 
       remainingBalance: remaining,
-      primaryCheckoutUrl,
-      allStripeProductIds
+      primaryCheckoutUrl
     };
   }, [selectedServices, serviceRegistry, selectedTimeSlot]);
 
-  const { lineItems, surcharge, surchargeLabel, totalPrice, depositAmount, remainingBalance, primaryCheckoutUrl, allStripeProductIds } = priceCalculation;
+  const { lineItems, surcharge, surchargeLabel, totalPrice, depositAmount, remainingBalance, primaryCheckoutUrl } = priceCalculation;
 
   const calendarDays = useMemo(() => {
     const days = [];
@@ -111,77 +99,46 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
 
   const handleStripeCheckout = async () => {
     setIsProcessing(true);
-    setStatusMsg('Synchronizing Studio Database...');
+    setStatusMsg('Generating Secure Payment Link...');
 
-    // Save session data to localStorage so we can display it on the confirmation page after redirect back
+    const apptId = Math.random().toString(36).substr(2, 9);
     const selectedSlotInfo = TIME_SLOTS.find(t => t.id === selectedTimeSlot);
+    
+    // 1. Store pending state for redirect verification
+    localStorage.setItem('cdpl_pending_appt_v1', apptId);
     localStorage.setItem('cdpl_last_booking_v1', JSON.stringify({
+        id: apptId,
         name, car, date: selectedDate, slot: selectedSlotInfo?.label, amount: depositAmount, services: lineItems.map(l => l.name)
     }));
 
     try {
-      await handleEmailProtocols();
-    } catch (err) {
-      console.warn("Email protocol failed, proceeding to payment anyway:", err);
-    }
-
-    setStatusMsg('Finalizing Secure Redirection...');
-    setTimeout(() => {
-      window.location.href = primaryCheckoutUrl;
-    }, 1000);
-  };
-
-  const handleEmailProtocols = async () => {
-    const targetEmail = email.trim();
-    const selectedSlotInfo = TIME_SLOTS.find(t => t.id === selectedTimeSlot);
-    
-    const sharedContext = {
-      from_name: name,
-      customer_name: name,
-      vehicle: car,
-      services_list: lineItems.map(li => li.name).join(', '),
-      booking_date: selectedDate,
-      time_slot: selectedSlotInfo?.label || 'Not Selected',
-      total_price: `${totalPrice} PLN`,
-      deposit_paid: `${depositAmount} PLN`,
-      balance_due: `${remainingBalance} PLN`,
-      studio_notes: notes || 'No additional notes provided.',
-      stripe_product_ids: allStripeProductIds || 'N/A'
-    };
-
-    const studioPayload = { ...sharedContext, to_email: STUDIO_EMAIL };
-    const customerPayload = { ...sharedContext, to_email: targetEmail };
-
-    if (window.emailjs) {
+      let aiSummary = "Professional restoration planned for " + car;
       try {
-        await window.emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_STUDIO_TEMPLATE_ID, studioPayload);
-        if (EMAILJS_CUSTOMER_TEMPLATE_ID) {
-          await window.emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_CUSTOMER_TEMPLATE_ID, customerPayload);
-        }
-      } catch (e) {
-        console.error("EmailJS Service Error:", e);
-      }
-    }
+        const conversationText = `Client: ${name}, Vehicle: ${car}, Services: ${lineItems.map(li => li.name).join(', ')}`;
+        aiSummary = await summarizeInquiry(conversationText);
+      } catch (e) {}
 
-    let aiSummary = "Professional restoration planned for " + car;
-    try {
-      const conversationText = `Client: ${name}, Vehicle: ${car}, Services: ${lineItems.map(li => li.name).join(', ')}`;
-      aiSummary = await summarizeInquiry(conversationText);
-    } catch (e) {
-      console.warn("AI Summarization failed:", e);
-    }
-    setSummary(aiSummary);
+      // 2. Create local appointment record (PENDING)
+      onAddAppointment({
+        id: apptId,
+        name, email: email.trim(), car, notes,
+        services: lineItems.map(li => li.name),
+        aiSummary,
+        status: 'PENDING',
+        scheduledDate: selectedDate,
+        scheduledSlot: selectedTimeSlot,
+        timestamp: Date.now()
+      });
 
-    onAddAppointment({
-      id: Math.random().toString(36).substr(2, 9),
-      name, email: targetEmail, car, notes,
-      services: lineItems.map(li => li.name),
-      aiSummary,
-      status: 'PENDING',
-      scheduledDate: selectedDate,
-      scheduledSlot: selectedTimeSlot,
-      timestamp: Date.now()
-    });
+      // 3. Finalize redirect
+      setStatusMsg('Redirecting to Stripe Security...');
+      setTimeout(() => {
+        window.location.href = primaryCheckoutUrl;
+      }, 800);
+    } catch (err) {
+      setIsProcessing(false);
+      alert("Checkout failed. Please check your internet connection.");
+    }
   };
 
   return (
@@ -196,7 +153,7 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
-        <div className="lg:col-span-5 space-y-8 animate-in slide-in-from-left-4 lg:sticky lg:top-32">
+        <div className="lg:col-span-5 space-y-8 lg:sticky lg:top-32">
            <div className="bg-slate-900/50 border border-white/5 rounded-[2.5rem] p-8 shadow-2xl">
               <div className="flex items-center justify-between pb-6 border-b border-white/5 mb-6">
                  <div className="flex items-center gap-4">
@@ -233,7 +190,7 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
 
         <div className="lg:col-span-7 relative flex flex-col bg-slate-900/30 p-8 md:p-12 rounded-[2.5rem] border border-white/5 shadow-2xl min-h-[500px]">
           {isProcessing && (
-            <div className="absolute inset-0 z-50 bg-[#05070a]/90 backdrop-blur-xl flex flex-col items-center justify-center p-8 text-center rounded-[2.5rem] border border-blue-500/20">
+            <div className="absolute inset-0 z-50 bg-[#05070a]/90 backdrop-blur-xl flex flex-col items-center justify-center p-8 text-center rounded-[2.5rem] border border-blue-500/20 animate-in fade-in duration-300">
                <div className="w-16 h-16 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin mb-8"></div>
                <p className="text-blue-400 text-[10px] font-bold uppercase tracking-[0.3em] animate-pulse">{statusMsg}</p>
             </div>
@@ -311,16 +268,12 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
 
                   <div className="bg-black/40 p-8 rounded-[2.5rem] border border-white/5 space-y-6">
                       <div className="flex items-center justify-between text-xs font-bold uppercase tracking-widest">
-                        <span className="text-slate-500">Order Ref (IDs)</span>
-                        <span className="text-blue-500 font-mono text-[8px] max-w-[150px] truncate">{allStripeProductIds || 'N/A'}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-xs font-bold uppercase tracking-widest">
                         <span className="text-slate-500">Booking Date</span>
                         <span className="text-white">{selectedDate}</span>
                       </div>
                       <div className="h-[1px] w-full bg-white/5"></div>
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold uppercase tracking-widest text-emerald-500">Payment Due Now</span>
+                        <span className="text-xs font-bold uppercase tracking-widest text-emerald-500">Deposit Authorized</span>
                         <span className="text-2xl font-display font-bold text-white">{depositAmount} PLN</span>
                       </div>
                   </div>
@@ -333,15 +286,9 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
                         <svg className="w-5 h-5 group-hover:scale-110 transition-transform" fill="currentColor" viewBox="0 0 24 24">
                           <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
                         </svg>
-                        Proceed to Secure Stripe Payment
+                        Confirm Booking & Pay Deposit
                       </button>
                       <button onClick={() => setStep('schedule')} className="text-[10px] font-bold uppercase tracking-widest text-slate-500 hover:text-white transition-colors">Go back to scheduler</button>
-                  </div>
-
-                  <div className="flex items-center justify-center gap-4 pt-8 opacity-40">
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/b/ba/Stripe_Logo%2C_revised_2016.svg" alt="Stripe" className="h-6 filter brightness-0 invert" />
-                    <div className="h-4 w-[1px] bg-white/20"></div>
-                    <span className="text-[9px] font-bold uppercase tracking-widest">Secured by Stripe Cloud</span>
                   </div>
               </div>
           )}

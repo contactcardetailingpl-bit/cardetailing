@@ -113,12 +113,12 @@ const Navigation: React.FC<NavigationProps> = ({ currentView, onViewChange, sele
             </button>
 
             {isOpen && (
-              <div className="absolute right-0 mt-4 w-72 bg-[#080a0f]/95 backdrop-blur-2xl border border-white/10 rounded-[2rem] overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] animate-in slide-in-from-top-4 fade-in duration-300">
-                <div className="p-4 border-b border-white/5 bg-white/5">
+              <div className="absolute right-0 mt-4 w-72 bg-[#080a0f]/95 backdrop-blur-2xl border border-white/10 rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.5)] animate-in slide-in-from-top-4 fade-in duration-300 overflow-hidden flex flex-col max-h-[calc(100vh-120px)]">
+                <div className="p-4 border-b border-white/5 bg-white/5 flex-shrink-0">
                   <p className="text-[9px] font-bold text-slate-500 uppercase tracking-[0.2em] px-4">Studio Concierge</p>
                 </div>
                 
-                <div className="p-2 space-y-1">
+                <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
                   {member && (
                     <button
                       onClick={() => handleNavigate(ViewMode.MEMBER_PORTAL)}
@@ -173,7 +173,7 @@ const Navigation: React.FC<NavigationProps> = ({ currentView, onViewChange, sele
                   </button>
                 </div>
 
-                <div className="p-6 bg-white/5 flex flex-col gap-4">
+                <div className="p-6 bg-white/5 flex flex-col gap-4 flex-shrink-0">
                   <div className="flex justify-between items-center text-[8px] font-bold text-slate-600 uppercase tracking-widest">
                     <span>Poznań Studio</span>
                     <span className="flex items-center gap-1">

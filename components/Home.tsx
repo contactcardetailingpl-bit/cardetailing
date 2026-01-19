@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { ViewMode, HomepageContent } from '../types';
 
@@ -28,6 +29,33 @@ const reviews = [
     text: "The AI Advisor helped me choose the right leather protection for my Silverstone interior. The results of the conditioning treatment are fantastic—the leather is supple and smells factory-fresh.",
     rating: 5,
     service: "Interior Restoration"
+  }
+];
+
+const homeTiers = [
+  {
+    name: 'Silver',
+    icon: '🥈',
+    desc: 'The essential maintenance plan for daily drivers looking for consistent shine.',
+    price: '250 PLN',
+    color: 'from-slate-400 to-slate-600',
+    benefit: '2x Maintenance Washes'
+  },
+  {
+    name: 'Gold',
+    icon: '🥇',
+    desc: 'Deep interior care and protection for households with up to 2 vehicles.',
+    price: '500 PLN',
+    color: 'from-amber-400 to-amber-600',
+    benefit: 'Monthly Deep Interior'
+  },
+  {
+    name: 'Platinum',
+    icon: '💎',
+    desc: 'The ultimate protection package with exclusive discounts and fleet coverage.',
+    price: '900 PLN',
+    color: 'from-blue-400 to-blue-700',
+    benefit: '20% Studio Discount'
   }
 ];
 
@@ -116,8 +144,60 @@ const Home: React.FC<HomeProps> = ({ content, onNavigate, onStartTour }) => {
         </div>
       </section>
 
+      {/* New Membership Section */}
+      <section className="px-6 py-32 bg-[#05070a] border-y border-white/5 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-1/2 h-full bg-blue-600/5 blur-[120px] rounded-full pointer-events-none"></div>
+        <div className="max-w-7xl mx-auto relative z-10">
+          <div className="text-center mb-20">
+            <span className="text-blue-500 font-bold text-[10px] uppercase tracking-[0.4em] mb-4 block">Continuity Programs</span>
+            <h2 className="text-5xl font-display font-bold text-white uppercase tracking-tight mb-6">Studio Memberships</h2>
+            <p className="text-slate-500 max-w-xl mx-auto italic">
+              "Perfection isn't a single act, it's a habit. Maintain your showroom finish all year round."
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {homeTiers.map((tier, idx) => (
+              <div key={idx} className="bg-slate-900/50 border border-white/10 rounded-[2.5rem] p-10 flex flex-col hover:border-blue-500/30 transition-all duration-500 group">
+                <div className="flex items-center justify-between mb-8">
+                  <span className="text-4xl">{tier.icon}</span>
+                  <div className={`h-[1px] w-12 bg-gradient-to-r ${tier.color}`}></div>
+                </div>
+                <h3 className="text-2xl font-display font-bold text-white uppercase tracking-tight mb-3">{tier.name}</h3>
+                <p className="text-slate-500 text-sm leading-relaxed mb-8 flex-1">{tier.desc}</p>
+                <div className="space-y-4 mb-10">
+                  <div className="flex items-center gap-3 text-[10px] font-bold text-blue-400 uppercase tracking-widest">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                    {tier.benefit}
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-2xl font-display font-bold text-white">{tier.price}</span>
+                    <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">/ month</span>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => onNavigate(ViewMode.MEMBERSHIP)}
+                  className="w-full py-4 bg-white/5 hover:bg-blue-600 border border-white/10 hover:border-blue-500 text-slate-300 hover:text-white rounded-2xl font-bold uppercase tracking-widest text-[10px] transition-all group-hover:shadow-lg group-hover:shadow-blue-500/10"
+                >
+                  Explore Program →
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-20 text-center">
+            <button 
+              onClick={() => onNavigate(ViewMode.MEMBERSHIP)}
+              className="px-12 py-5 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-bold uppercase tracking-[0.3em] text-[11px] transition-all shadow-xl shadow-blue-500/20"
+            >
+              View Full Membership Details
+            </button>
+          </div>
+        </div>
+      </section>
+
       <section className="px-6 py-32 bg-[#05070a]">
-        <div className="max-w-7xl mx-auto border-t border-white/5 pt-20">
+        <div className="max-w-7xl mx-auto pt-20">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
             {content.stats.map((stat, i) => (
               <div key={i}>

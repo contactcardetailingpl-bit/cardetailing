@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type, GenerateContentResponse, Modality } from "@google/genai";
 import { Message } from "../types";
 
@@ -43,36 +42,54 @@ export async function decodeAudioData(
   return buffer;
 }
 
-// Visualizer image generation using gemini-2.5-flash-image
-export const generateVisualizerImage = async (carModel: string, finishType: string): Promise<string> => {
+// Visualizer image generation supporting both Standard and Pro
+export const generateVisualizerImage = async (carModel: string, finishType: string, isExpert: boolean = false): Promise<string> => {
+  // Create instance right before call as per guidelines for Pro models
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const prompt = `A professional high-end cinematic photo of a ${carModel} with a stunning ${finishType} finish. 
-  The car must have a Polish standard registration plate (white background, black letters, and a blue EU strip on the left with 'PL'). 
-  The car is in a luxury detailing studio in Poland with perfect studio lighting, reflecting the environment on its mirror-like paint. 
-  Hyper-realistic, 8k, automotive photography style.`;
+  const model = isExpert ? 'gemini-3-pro-image-preview' : 'gemini-2.5-flash-image';
   
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash-image',
-    contents: {
-      parts: [{ text: prompt }],
-    },
-    config: {
-      imageConfig: {
-        aspectRatio: "16:9"
+  const prompt = `A professional high-end cinematic studio photo of a ${carModel} featuring a ${finishType} finish. 
+  The car has standard Polish registration plates (white background, black font, blue EU strip with 'PL'). 
+  Located inside a pristine, modern automotive detailing facility in Poland with professional studio soft-box lighting. 
+  The paintwork shows deep, mirror-like reflections of the studio environment. 
+  High-fidelity, 8k resolution, automotive advertising photography style.`;
+  
+  try {
+    const response = await ai.models.generateContent({
+      model: model,
+      contents: {
+        parts: [{ text: prompt }],
+      },
+      config: {
+        imageConfig: {
+          aspectRatio: "16:9",
+          ...(isExpert ? { imageSize: "1K" } : {})
+        }
       }
-    }
-  });
+    });
 
-  const candidates = response.candidates;
-  if (candidates && candidates.length > 0) {
-    const parts = candidates[0].content?.parts || [];
-    for (const part of parts) {
-      if (part.inlineData) {
-        return `data:image/png;base64,${part.inlineData.data}`;
+    const candidates = response.candidates;
+    if (candidates && candidates.length > 0) {
+      const parts = candidates[0].content?.parts || [];
+      for (const part of parts) {
+        if (part.inlineData) {
+          return `data:image/png;base64,${part.inlineData.data}`;
+        }
       }
     }
+    
+    // Check for safety blocks
+    if (!candidates || candidates.length === 0) {
+        throw new Error("Safety filters blocked this car model or finish. Try a different description.");
+    }
+
+    throw new Error("The engine failed to produce a visual. Please try again.");
+  } catch (error: any) {
+    if (error.message?.includes("Requested entity was not found")) {
+        throw new Error("PRO_KEY_REQUIRED");
+    }
+    throw error;
   }
-  throw new Error("No image generated");
 };
 
 // General image generation using gemini-2.5-flash-image
@@ -117,11 +134,8 @@ export const chatWithAdvisor = async (history: Message[], isExpert: boolean = fa
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const modelName = isExpert ? 'gemini-3-pro-preview' : 'gemini-3-flash-preview';
   
-  // CRITICAL: Gemini API multi-turn conversations MUST start with a 'user' role.
-  // We filter out any leading messages that are not from the 'user' (like our initial greeting).
   let firstUserIndex = history.findIndex(m => m.role === 'user');
   if (firstUserIndex === -1) {
-    // If no user messages yet, just send the system instruction prompt or a simple ping
     firstUserIndex = history.length; 
   }
   
@@ -146,11 +160,13 @@ export const chatWithAdvisor = async (history: Message[], isExpert: boolean = fa
     const text = response.text || "I apologize, I could not generate a response.";
     const candidates = response.candidates;
     const grounding = candidates?.[0]?.groundingMetadata?.groundingChunks?.map((chunk: any) => ({
-      uri: chunk.web?.uri || "",
-      title: chunk.web?.title || ""
-    })).filter((c: any) => c.uri) || [];
+      web: {
+        uri: chunk.web?.uri || "",
+        title: chunk.web?.title || ""
+      }
+    })).filter((c: any) => c.web.uri) || [];
 
-    return { text, grounding };
+    return { text, grounding: grounding.map(g => g.web) };
   } catch (err: any) {
     console.error("Gemini API direct error:", err);
     throw err;
@@ -171,11 +187,13 @@ export const chatWithSearch = async (message: string) => {
   const text = response.text || "";
   const candidates = response.candidates;
   const grounding = candidates?.[0]?.groundingMetadata?.groundingChunks?.map((chunk: any) => ({
-    uri: chunk.web?.uri || "",
-    title: chunk.web?.title || ""
-  })).filter((c: any) => c.uri) || [];
+    web: {
+        uri: chunk.web?.uri || "",
+        title: chunk.web?.title || ""
+    }
+  })).filter((c: any) => c.web.uri) || [];
 
-  return { text, grounding };
+  return { text, grounding: grounding.map(g => g.web) };
 };
 
 // Expert speech generation

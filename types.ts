@@ -1,3 +1,4 @@
+
 export enum ViewMode {
   HOME = 'HOME',
   SERVICES = 'SERVICES',
@@ -7,7 +8,9 @@ export enum ViewMode {
   BOOKING = 'BOOKING',
   ADMIN = 'ADMIN',
   CONTACT = 'CONTACT',
-  CONFIRMATION = 'CONFIRMATION'
+  CONFIRMATION = 'CONFIRMATION',
+  MEMBERSHIP = 'MEMBERSHIP',
+  MEMBER_PORTAL = 'MEMBER_PORTAL'
 }
 
 export interface WorkshopUser {
@@ -35,8 +38,8 @@ export interface WorkshopService {
   category: string;
   details: string[];
   isVisible?: boolean;
-  stripeProductId?: string; // Stripe Product ID (e.g., prod_...)
-  stripeUrl?: string; // Stripe Checkout/Payment Link URL
+  stripeProductId?: string;
+  stripeUrl?: string;
 }
 
 export interface Appointment {
@@ -48,8 +51,19 @@ export interface Appointment {
   services: string[];
   aiSummary: string;
   status: 'PENDING' | 'CONFIRMED' | 'COMPLETED';
-  scheduledDate: string; // YYYY-MM-DD
-  scheduledSlot: string; // morning, afternoon, evening
+  scheduledDate: string;
+  scheduledSlot: string;
+  timestamp: number;
+  isMemberBooking?: boolean;
+}
+
+export interface MembershipSignup {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  tier: string;
+  price: string;
   timestamp: number;
 }
 

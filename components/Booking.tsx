@@ -1,6 +1,7 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { summarizeInquiry } from '../services/geminiService';
-import { Appointment, WorkshopService } from '../types';
+import { Appointment, WorkshopService, MembershipSignup } from '../types';
 
 declare global {
   interface Window {
@@ -9,39 +10,52 @@ declare global {
   }
 }
 
-const EMAILJS_SERVICE_ID = 'service_d2nl42u'; 
-const EMAILJS_PUBLIC_KEY = 'LHrgkITA0L-J7QOE0';
-const EMAILJS_STUDIO_TEMPLATE_ID = 'template_uxhva1n'; 
-const EMAILJS_CUSTOMER_TEMPLATE_ID = 'template_ttzwbm7';
-const STUDIO_EMAIL = 'contactcardetailing.pl@gmail.com';
+/** 
+ * Studio Configuration
+ */
+const EMAILJS_PUBLIC_KEY = 'LHrgkITA0L-J7QOE0'; 
+const EMAILJS_SERVICE_ID = 'service_d2nl42u';   
+const EMAILJS_TEMPLATE_CUSTOMER_ID = 'template_ttzwbm7'; 
+const EMAILJS_TEMPLATE_STUDIO_ID = 'template_uxhva1n'; 
+const STUDIO_OFFICIAL_EMAIL = 'contactcardetailing.pl@gmail.com';
 
-const TIME_SLOTS = [
-  { id: 'morning', label: 'Morning Slot', time: '09:00 - 12:00', icon: '🌅' },
-  { id: 'afternoon', label: 'Afternoon Slot', time: '13:00 - 16:00', icon: '☀️' },
-  { id: 'evening', label: 'Evening Premium', time: '17:00 - 20:00', icon: '🌙', surcharge: 50 }
-];
+const TIME_SLOTS = Array.from({ length: 12 }, (_, i) => {
+  const startHour = 9 + i;
+  const startStr = `${startHour.toString().padStart(2, '0')}:00`;
+  const endStr = `${(startHour + 1).toString().padStart(2, '0')}:00`;
+  const isLateNight = startHour >= 18;
+  return {
+    id: startStr,
+    label: `${startStr} - ${endStr}`,
+    time: `${startStr} - ${endStr}`,
+    icon: startHour < 12 ? '🌅' : startHour < 18 ? '☀️' : '🌙',
+    surcharge: isLateNight ? 50 : 0
+  };
+});
 
 interface BookingProps {
   selectedServices: string[];
   serviceRegistry: WorkshopService[];
+  appointments: Appointment[]; 
   onToggleService: (name: string) => void;
   onAddAppointment: (appt: Appointment) => void;
+  member?: MembershipSignup | null;
 }
 
 type BookingStep = 'details' | 'schedule' | 'payment';
 
-const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, onToggleService, onAddAppointment }) => {
+const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, appointments, onToggleService, onAddAppointment, member }) => {
   const [step, setStep] = useState<BookingStep>('details');
   const [isProcessing, setIsProcessing] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
   
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
+  const [name, setName] = useState(member?.name || '');
+  const [email, setEmail] = useState(member?.email || '');
   const [car, setCar] = useState('');
   const [notes, setNotes] = useState('');
   
   const [selectedDate, setSelectedDate] = useState<string>(new Date(Date.now() + 86400000).toISOString().split('T')[0]);
-  const [selectedTimeSlot, setSelectedTimeSlot] = useState<string>('morning');
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState<string>('');
 
   useEffect(() => {
     if (window.emailjs && EMAILJS_PUBLIC_KEY) {
@@ -49,111 +63,166 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
     }
   }, []);
 
+  useEffect(() => {
+      setSelectedTimeSlot('');
+  }, [selectedDate]);
+
   const priceCalculation = useMemo(() => {
     const parsePrice = (priceStr: string) => parseInt(priceStr.replace(/[^0-9]/g, '')) || 0;
-    
-    // Find matched services from registry based on selected names
-    const matchedServices = serviceRegistry.filter(s => 
-        selectedServices.includes(s.name) && 
-        s.isVisible !== false
-    );
-    
+    const matchedServices = serviceRegistry.filter(s => selectedServices.includes(s.name) && s.isVisible !== false);
     const items = matchedServices.map(s => ({ 
       name: s.name, 
       price: parsePrice(s.price),
-      stripeId: s.stripeProductId,
       stripeUrl: s.stripeUrl
     }));
     
     const subtotalValue = items.reduce((acc, s) => acc + s.price, 0);
     const selectedSlot = TIME_SLOTS.find(t => t.id === selectedTimeSlot);
     const surchargeValue = selectedSlot?.surcharge || 0;
+
+    // Platinum Discount Logic
+    const isPlatinum = member?.tier.includes('Platinum');
+    const discountAmount = isPlatinum ? Math.round(subtotalValue * 0.20) : 0;
     
-    const total = subtotalValue + surchargeValue;
-    const deposit = Math.round(total * 0.20);
-    const remaining = total - deposit;
-
-    // Hardened logic to find the best Stripe URL available in the basket
-    // We sort by price to ensure the primary payment link reflects the most significant service
-    const itemsWithLinks = items.filter(item => item.stripeUrl && item.stripeUrl.trim() !== '');
-    const sortedByPrice = [...itemsWithLinks].sort((a, b) => b.price - a.price);
-    const primaryCheckoutUrl = sortedByPrice[0]?.stripeUrl || '';
-
+    // Deposit is ALWAYS 20% of the ORIGINAL subtotal, regardless of discount
+    const deposit = Math.round(subtotalValue * 0.20);
+    
+    // Total price reflects the discount and the surcharge
+    const total = (subtotalValue - discountAmount) + surchargeValue;
+    
+    // Remaining balance to be paid at the studio
+    const balance = total - deposit;
+    
+    const primaryCheckoutUrl = items.filter(i => i.stripeUrl).sort((a,b) => b.price - a.price)[0]?.stripeUrl || '';
+    
     return { 
-      lineItems: items,
-      surcharge: surchargeValue,
-      surchargeLabel: selectedSlot?.label,
+      lineItems: items, 
+      surcharge: surchargeValue, 
+      subtotal: subtotalValue,
+      discount: discountAmount,
       totalPrice: total, 
       depositAmount: deposit, 
-      remainingBalance: remaining,
-      primaryCheckoutUrl
+      remainingBalance: balance,
+      primaryCheckoutUrl,
+      isPlatinum
     };
-  }, [selectedServices, serviceRegistry, selectedTimeSlot]);
+  }, [selectedServices, serviceRegistry, selectedTimeSlot, member]);
 
-  const { lineItems, surcharge, surchargeLabel, totalPrice, depositAmount, remainingBalance, primaryCheckoutUrl } = priceCalculation;
+  const { lineItems, surcharge, totalPrice, depositAmount, remainingBalance, primaryCheckoutUrl, discount, isPlatinum, subtotal } = priceCalculation;
+
+  const sendConfirmationEmails = async (apptData: any) => {
+    if (!window.emailjs) return false;
+
+    const customerEmail = String(apptData.email || '').trim();
+    if (!customerEmail) return false;
+
+    const baseParams = {
+      client_name: String(apptData.name),
+      name: String(apptData.name),
+      client_email: customerEmail,
+      email: customerEmail,
+      vehicle: String(apptData.car),
+      car: String(apptData.car),
+      date: String(apptData.date),
+      time: String(apptData.slot),
+      slot: String(apptData.slot),
+      services: String(apptData.services.join(', ')),
+      total_price: `${apptData.total} PLN`,
+      deposit: `${apptData.amount} PLN`,
+      notes: String(apptData.notes || 'No extra notes provided.')
+    };
+
+    try {
+      await window.emailjs.send(
+        EMAILJS_SERVICE_ID, 
+        EMAILJS_TEMPLATE_CUSTOMER_ID, 
+        { ...baseParams, to_email: customerEmail, reply_to: STUDIO_OFFICIAL_EMAIL },
+        EMAILJS_PUBLIC_KEY
+      );
+      await window.emailjs.send(
+        EMAILJS_SERVICE_ID, 
+        EMAILJS_TEMPLATE_STUDIO_ID, 
+        { ...baseParams, to_email: STUDIO_OFFICIAL_EMAIL, reply_to: customerEmail },
+        EMAILJS_PUBLIC_KEY
+      );
+      return true;
+    } catch (e: any) {
+      console.error('Email Dispatch Error:', e);
+      return false;
+    }
+  };
+
+  const handleStripeCheckout = async () => {
+    if (!primaryCheckoutUrl) {
+      alert("Checkout link missing.");
+      return;
+    }
+
+    setIsProcessing(true);
+    setStatusMsg('Booking Your Slot...');
+
+    const apptId = Math.random().toString(36).substr(2, 9);
+    const selectedSlotInfo = TIME_SLOTS.find(t => t.id === selectedTimeSlot);
+    
+    const bookingSummary = {
+        id: apptId,
+        name: name, 
+        email: email.trim(),
+        car: car, 
+        date: selectedDate, 
+        slot: selectedSlotInfo?.label || 'Time TBD', 
+        amount: depositAmount,
+        total: totalPrice,
+        services: lineItems.map(l => l.name),
+        notes: notes
+    };
+
+    localStorage.setItem('cdpl_pending_appt_v1', apptId);
+    localStorage.setItem('cdpl_last_booking_v1', JSON.stringify(bookingSummary));
+
+    try {
+      onAddAppointment({
+        id: apptId,
+        name, email: email.trim(), car, notes,
+        services: lineItems.map(li => li.name),
+        aiSummary: "Studio Booking: " + car,
+        status: 'PENDING',
+        scheduledDate: selectedDate,
+        scheduledSlot: selectedTimeSlot,
+        timestamp: Date.now(),
+        isMemberBooking: !!member
+      });
+
+      setStatusMsg('Finalizing Emails...');
+      await sendConfirmationEmails(bookingSummary);
+
+      setStatusMsg('Redirecting to Stripe...');
+      setTimeout(() => {
+        window.location.href = primaryCheckoutUrl;
+      }, 800);
+    } catch (err: any) {
+      setIsProcessing(false);
+      alert("There was an issue processing the reservation.");
+    }
+  };
+
+  const isSlotBooked = (slotId: string) => {
+    return appointments.some(appt => 
+        appt.scheduledDate === selectedDate && 
+        appt.scheduledSlot === slotId &&
+        appt.status !== 'COMPLETED'
+    );
+  };
 
   const calendarDays = useMemo(() => {
     const days = [];
     for (let i = 1; i <= 14; i++) {
         const d = new Date();
         d.setDate(d.getDate() + i);
-        days.push({ 
-          full: d.toISOString().split('T')[0], 
-          day: d.toLocaleDateString('en-US', { weekday: 'short' }), 
-          date: d.getDate() 
-        });
+        days.push({ full: d.toISOString().split('T')[0], day: d.toLocaleDateString('en-US', { weekday: 'short' }), date: d.getDate() });
     }
     return days;
   }, []);
-
-  const handleStripeCheckout = async () => {
-    if (!primaryCheckoutUrl) {
-      alert("Verification Error: We couldn't locate a secure checkout link for these services. Please clear your browser cache or contact CarDetailing.PL directly via the Contact page.");
-      return;
-    }
-
-    setIsProcessing(true);
-    setStatusMsg('Initializing Secure Studio Portal...');
-
-    const apptId = Math.random().toString(36).substr(2, 9);
-    const selectedSlotInfo = TIME_SLOTS.find(t => t.id === selectedTimeSlot);
-    
-    // Store pending state for redirect verification
-    localStorage.setItem('cdpl_pending_appt_v1', apptId);
-    localStorage.setItem('cdpl_last_booking_v1', JSON.stringify({
-        id: apptId,
-        name, car, date: selectedDate, slot: selectedSlotInfo?.label, amount: depositAmount, services: lineItems.map(l => l.name)
-    }));
-
-    try {
-      let aiSummary = "Professional restoration planned for " + car;
-      try {
-        const conversationText = `Client: ${name}, Vehicle: ${car}, Services: ${lineItems.map(li => li.name).join(', ')}`;
-        aiSummary = await summarizeInquiry(conversationText);
-      } catch (e) {}
-
-      // Create local appointment record (PENDING)
-      onAddAppointment({
-        id: apptId,
-        name, email: email.trim(), car, notes,
-        services: lineItems.map(li => li.name),
-        aiSummary,
-        status: 'PENDING',
-        scheduledDate: selectedDate,
-        scheduledSlot: selectedTimeSlot,
-        timestamp: Date.now()
-      });
-
-      // Finalize redirect with slight delay for UX
-      setStatusMsg('Redirecting to Stripe Security...');
-      setTimeout(() => {
-        window.location.href = primaryCheckoutUrl;
-      }, 1000);
-    } catch (err) {
-      setIsProcessing(false);
-      alert("Checkout failed. Please check your internet connection and try again.");
-    }
-  };
 
   return (
     <div className="flex-1 flex flex-col px-6 py-20 max-w-7xl mx-auto w-full">
@@ -168,7 +237,13 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
         <div className="lg:col-span-5 space-y-8 lg:sticky lg:top-32">
-           <div className="bg-slate-900/50 border border-white/5 rounded-[2.5rem] p-8 shadow-2xl">
+           <div className="bg-slate-900/50 border border-white/5 rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden">
+              {isPlatinum && (
+                <div className="absolute top-0 right-0 bg-blue-600 text-white text-[8px] font-bold uppercase tracking-widest px-4 py-1.5 rounded-bl-2xl">
+                  Platinum Member Rates
+                </div>
+              )}
+              
               <div className="flex items-center justify-between pb-6 border-b border-white/5 mb-6">
                  <div className="flex items-center gap-4">
                     <div className="w-10 h-10 rounded-xl bg-blue-600/20 flex items-center justify-center text-lg">📋</div>
@@ -182,21 +257,47 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
                        <span className="text-xs font-mono text-slate-500">{item.price} PLN</span>
                     </div>
                  ))}
+                 
+                 {isPlatinum && discount > 0 && (
+                    <div className="flex items-center justify-between bg-blue-500/10 p-4 rounded-xl border border-blue-500/20 animate-in slide-in-from-left-2">
+                       <span className="text-xs font-bold text-blue-400 uppercase tracking-tight">Platinum Benefit (20%)</span>
+                       <span className="text-xs font-mono text-blue-400">-{discount} PLN</span>
+                    </div>
+                 )}
+
                  {surcharge > 0 && (
-                    <div className="flex items-center justify-between bg-blue-500/5 p-4 rounded-xl border border-blue-500/10">
-                       <span className="text-xs font-bold text-blue-400 uppercase tracking-tight">{surchargeLabel}</span>
-                       <span className="text-xs font-mono text-blue-400">+{surcharge} PLN</span>
+                    <div className="flex items-center justify-between bg-amber-500/10 p-4 rounded-xl border border-amber-500/20">
+                       <span className="text-xs font-bold text-amber-500 uppercase tracking-tight">Late Night Fee</span>
+                       <span className="text-xs font-mono text-amber-500">+{surcharge} PLN</span>
                     </div>
                  )}
               </div>
-              <div className="pt-8 mt-6 border-t border-white/5">
-                 <div className="flex justify-between items-center mb-2">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Total Investment</span>
+              <div className="pt-8 mt-6 border-t border-white/5 space-y-4">
+                 <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Total Investment</span>
+                    </div>
                     <span className="text-2xl font-display font-bold text-white">{totalPrice} PLN</span>
                  </div>
-                 <div className="flex justify-between items-center">
-                    <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">Deposit Due (20%)</span>
+                 
+                 <div className="flex justify-between items-center p-4 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl">
+                    <div className="flex flex-col">
+                      <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">Initial Deposit</span>
+                      <span className="text-[7px] text-slate-500 uppercase tracking-widest">Standard 20% Reservation Fee</span>
+                    </div>
                     <span className="text-xl font-display font-bold text-emerald-400">{depositAmount} PLN</span>
+                 </div>
+
+                 <div className="flex justify-between items-center px-4">
+                    <div className="flex flex-col text-right w-full">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Due at Studio</span>
+                      <span className="text-lg font-display font-bold text-slate-300">{remainingBalance} PLN</span>
+                      {isPlatinum && (
+                        <span className="text-[8px] font-bold text-blue-500 uppercase tracking-widest mt-1 italic">
+                          * Your 20% discount is applied to this balance
+                        </span>
+                      )}
+                    </div>
                  </div>
               </div>
            </div>
@@ -225,9 +326,13 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
                           <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">Vehicle Specification</label>
                           <input required type="text" value={car} onChange={(e) => setCar(e.target.value)} className="w-full bg-black border border-white/10 rounded-xl px-5 py-4 text-white text-sm outline-none focus:border-blue-500" placeholder="e.g. 2024 Porsche Taycan" />
                       </div>
+                      <div className="md:col-span-2 space-y-2">
+                          <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">Additional Notes</label>
+                          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full bg-black border border-white/10 rounded-xl px-5 py-4 text-white text-sm outline-none focus:border-blue-500 h-24" placeholder="Any special requests..." />
+                      </div>
                   </div>
                   <div className="flex justify-end pt-4">
-                      <button onClick={() => setStep('schedule')} disabled={!name || !email || !car} className="px-12 py-5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold uppercase tracking-widest text-[11px] disabled:opacity-50 transition-all">Next: Select Schedule →</button>
+                      <button onClick={() => setStep('schedule')} disabled={!name || !email || !car} className="px-12 py-5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold uppercase tracking-widest text-[11px] disabled:opacity-50 transition-all">Next: Schedule →</button>
                   </div>
               </div>
           )}
@@ -246,22 +351,22 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
                       </div>
                   </div>
                   <div className="space-y-6">
-                      <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">Preferred Time Slot</label>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                          {TIME_SLOTS.map((slot) => (
-                              <button key={slot.id} onClick={() => setSelectedTimeSlot(slot.id)} className={`flex items-center gap-4 p-5 rounded-2xl border transition-all ${selectedTimeSlot === slot.id ? 'bg-blue-600 border-blue-500 text-white shadow-lg' : 'bg-black/40 border-white/5 text-slate-400 hover:border-white/20'}`}>
-                                  <span className="text-2xl">{slot.icon}</span>
-                                  <div className="text-left">
-                                      <p className="text-[10px] font-bold uppercase tracking-widest">{slot.label}</p>
-                                      <p className="text-[9px] font-mono opacity-60">{slot.time}</p>
-                                  </div>
-                              </button>
-                          ))}
+                      <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">Available Slots</label>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-h-[450px] overflow-y-auto pr-2 custom-scrollbar">
+                          {TIME_SLOTS.map((slot) => {
+                              const booked = isSlotBooked(slot.id);
+                              return (
+                                <button key={slot.id} disabled={booked} onClick={() => setSelectedTimeSlot(slot.id)} className={`flex flex-col items-center gap-1 p-3 rounded-xl border transition-all ${booked ? 'bg-black/20 border-white/5 opacity-40 cursor-not-allowed' : selectedTimeSlot === slot.id ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/30' : 'bg-black/40 border-white/5 text-slate-400 hover:border-white/20'}`}>
+                                    <span className="text-lg">{booked ? '🔒' : slot.icon}</span>
+                                    <span className="text-[10px] font-bold uppercase tracking-tight">{slot.id}</span>
+                                </button>
+                              );
+                          })}
                       </div>
                   </div>
                   <div className="flex justify-between pt-4">
                       <button onClick={() => setStep('details')} className="px-8 py-5 bg-white/5 text-slate-400 rounded-xl font-bold uppercase tracking-widest text-[11px] hover:bg-white/10 transition-all">Back</button>
-                      <button onClick={() => setStep('payment')} className="px-12 py-5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold uppercase tracking-widest text-[11px] transition-all">Next: Review & Pay →</button>
+                      <button onClick={() => setStep('payment')} disabled={!selectedTimeSlot} className="px-12 py-5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold uppercase tracking-widest text-[11px] transition-all disabled:opacity-50">Next: Review →</button>
                   </div>
               </div>
           )}
@@ -269,40 +374,39 @@ const Booking: React.FC<BookingProps> = ({ selectedServices, serviceRegistry, on
           {step === 'payment' && (
               <div className="space-y-10 animate-in slide-in-from-right-4">
                   <div className="text-center py-6">
-                      <div className="inline-block p-4 rounded-full bg-blue-600/10 mb-6">
-                        <svg className="w-12 h-12 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                        </svg>
-                      </div>
-                      <h3 className="text-2xl font-display font-bold text-white uppercase tracking-tight mb-4">Secure Deposit Auth</h3>
+                      <h3 className="text-2xl font-display font-bold text-white uppercase tracking-tight mb-4">Confirm Selection</h3>
                       <p className="text-slate-400 text-sm max-w-sm mx-auto mb-8">
-                        Ready to finalize reservation for your <span className="text-white font-bold">{car}</span>. A deposit of {depositAmount} PLN is required.
+                        Ready to finalize reservation for your <span className="text-white font-bold">{car}</span>.
                       </p>
                   </div>
 
-                  <div className="bg-black/40 p-8 rounded-[2.5rem] border border-white/5 space-y-6">
+                  <div className="bg-black/40 p-8 rounded-[2.5rem] border border-white/5 space-y-6 relative overflow-hidden">
+                      {isPlatinum && (
+                         <div className="absolute inset-0 bg-blue-500/5 pointer-events-none"></div>
+                      )}
                       <div className="flex items-center justify-between text-xs font-bold uppercase tracking-widest">
-                        <span className="text-slate-500">Booking Date</span>
-                        <span className="text-white">{selectedDate}</span>
+                        <span className="text-slate-500">Date & Time</span>
+                        <span className="text-white">{selectedDate} @ {selectedTimeSlot}</span>
                       </div>
                       <div className="h-[1px] w-full bg-white/5"></div>
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold uppercase tracking-widest text-emerald-500">Deposit Authorized</span>
+                        <div className="flex flex-col">
+                          <span className="text-xs font-bold uppercase tracking-widest text-emerald-500">Deposit Authorized</span>
+                          {isPlatinum && <span className="text-[8px] font-bold text-blue-500 uppercase tracking-[0.2em] mt-1">Standard 20% Reservation</span>}
+                        </div>
                         <span className="text-2xl font-display font-bold text-white">{depositAmount} PLN</span>
+                      </div>
+                      <div className="flex items-center justify-between pt-4 border-t border-white/5">
+                        <span className="text-xs font-bold uppercase tracking-widest text-slate-500">Balance Due later</span>
+                        <span className="text-lg font-display font-bold text-slate-300">{remainingBalance} PLN</span>
                       </div>
                   </div>
 
                   <div className="flex flex-col gap-6 pt-4">
-                      <button 
-                        onClick={handleStripeCheckout} 
-                        className="w-full py-6 rounded-2xl font-bold uppercase tracking-[0.3em] text-[12px] bg-blue-600 hover:bg-blue-500 text-white shadow-2xl shadow-blue-500/20 transition-all flex items-center justify-center gap-4 group"
-                      >
-                        <svg className="w-5 h-5 group-hover:scale-110 transition-transform" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
-                        </svg>
-                        Confirm Booking & Pay Deposit
+                      <button onClick={handleStripeCheckout} className="w-full py-6 rounded-2xl font-bold uppercase tracking-[0.3em] text-[12px] bg-blue-600 hover:bg-blue-500 text-white shadow-2xl shadow-blue-500/20 transition-all flex items-center justify-center gap-4 group">
+                        Secure Booking & Pay Deposit
                       </button>
-                      <button onClick={() => setStep('schedule')} className="text-[10px] font-bold uppercase tracking-widest text-slate-500 hover:text-white transition-colors">Go back to scheduler</button>
+                      <button onClick={() => setStep('schedule')} className="text-[10px] font-bold uppercase tracking-widest text-slate-500 hover:text-white transition-colors text-center">Back</button>
                   </div>
               </div>
           )}

@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
-import { ViewMode, WorkshopMedia, WorkshopService, HomepageContent, WorkshopUser, Appointment } from './types';
+import { ViewMode, WorkshopMedia, WorkshopService, HomepageContent, WorkshopUser, Appointment, MembershipSignup } from './types';
 import Navigation from './components/Navigation';
 import Home from './components/Home';
 import AIAdvisor from './components/AIAdvisor';
@@ -12,18 +13,42 @@ import Contact from './components/Contact';
 import Logo from './components/Logo';
 import Tour from './components/Tour';
 import Confirmation from './components/Confirmation';
+import Membership from './components/Membership';
+import MemberPortal from './components/MemberPortal';
 
 const STORAGE_KEYS = {
-  SERVICES: 'cdpl_services_v3', // Incremented to v3 to force data refresh
+  SERVICES: 'cdpl_services_v3',
   MEDIA: 'cdpl_media_v4',
   HOMEPAGE: 'cdpl_homepage_v1',
   USERS: 'cdpl_users_v1',
   APPOINTMENTS: 'cdpl_appointments_v2',
-  LAST_BOOKING: 'cdpl_last_booking_v1'
+  MEMBERSHIPS: 'cdpl_memberships_v1',
+  SESSION: 'cdpl_member_session_v1'
 };
 
 const DEFAULT_USERS: WorkshopUser[] = [
   { id: 'initial_admin', username: 'admin_1', password: 'password123', role: 'ADMIN', createdAt: Date.now() }
+];
+
+const DEFAULT_MEMBERSHIPS: MembershipSignup[] = [
+  {
+    id: 'test_platinum',
+    name: 'Robert Lewandowski',
+    email: 'platinum@cardetailing.pl',
+    phone: '+48 000 000 000',
+    tier: 'Platinum Membership',
+    price: '900 PLN',
+    timestamp: Date.now()
+  },
+  {
+    id: 'test_gold',
+    name: 'Karolina Nowak',
+    email: 'gold@cardetailing.pl',
+    phone: '+48 111 111 111',
+    tier: 'Gold Membership',
+    price: '500 PLN',
+    timestamp: Date.now()
+  }
 ];
 
 const DEFAULT_HOMEPAGE: HomepageContent = {
@@ -92,6 +117,10 @@ const App: React.FC = () => {
   const [view, setView] = useState<ViewMode>(ViewMode.HOME);
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [isTourActive, setIsTourActive] = useState(false);
+  const [loggedMember, setLoggedMember] = useState<MembershipSignup | null>(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.SESSION);
+    return saved ? JSON.parse(saved) : null;
+  });
 
   const [workshopMedia, setWorkshopMedia] = useState<WorkshopMedia[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.MEDIA);
@@ -116,6 +145,12 @@ const App: React.FC = () => {
   const [appointments, setAppointments] = useState<Appointment[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.APPOINTMENTS);
     return saved ? JSON.parse(saved) : [];
+  });
+
+  const [memberships, setMemberships] = useState<MembershipSignup[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.MEMBERSHIPS);
+    // If no memberships exist in storage, use the defaults for testing
+    return saved ? JSON.parse(saved) : DEFAULT_MEMBERSHIPS;
   });
 
   // Stripe Success Auto-Verification
@@ -152,38 +187,68 @@ const App: React.FC = () => {
     localStorage.setItem(STORAGE_KEYS.APPOINTMENTS, JSON.stringify(appointments));
   }, [appointments]);
 
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.MEMBERSHIPS, JSON.stringify(memberships));
+  }, [memberships]);
+
+  useEffect(() => {
+    if (loggedMember) {
+      localStorage.setItem(STORAGE_KEYS.SESSION, JSON.stringify(loggedMember));
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.SESSION);
+    }
+  }, [loggedMember]);
+
+  const handleMemberLogin = (email: string) => {
+    const member = memberships.find(m => m.email.toLowerCase() === email.toLowerCase());
+    if (member) {
+      setLoggedMember(member);
+      setView(ViewMode.MEMBER_PORTAL);
+      return true;
+    }
+    return false;
+  };
+
+  const handleMemberLogout = () => {
+    setLoggedMember(null);
+    setView(ViewMode.HOME);
+  };
+
   const toggleService = (serviceName: string) => {
     setSelectedServices(prev => prev.includes(serviceName) ? prev.filter(s => s !== serviceName) : [...prev, serviceName]);
   };
 
   const handleUpdateAppointments = (newAppts: Appointment[]) => setAppointments(newAppts);
   const handleDeleteAppointment = useCallback((id: string) => setAppointments(prev => prev.filter(a => a.id !== id)), []);
+  const handleDeleteMembership = useCallback((id: string) => setMemberships(prev => prev.filter(m => m.id !== id)), []);
 
   const renderContent = () => {
     switch (view) {
       case ViewMode.HOME: return <Home content={homepageContent} onNavigate={setView} onStartTour={() => setIsTourActive(true)} />;
       case ViewMode.SERVICES: return <Services selectedServices={selectedServices} onToggleService={toggleService} onNavigate={setView} customServices={workshopServices} />;
+      case ViewMode.MEMBERSHIP: return <Membership onNavigate={setView} />;
+      case ViewMode.MEMBER_PORTAL: return <MemberPortal member={loggedMember} onLogout={handleMemberLogout} appointments={appointments} onAddAppointment={(a) => setAppointments(prev => [a, ...prev])} onNavigate={setView} />;
       case ViewMode.GALLERY: return <Gallery customMedia={workshopMedia} />;
       case ViewMode.ADVISOR: return <AIAdvisor />;
       case ViewMode.VISUALIZER: return <Visualizer />;
       case ViewMode.CONTACT: return <Contact />;
-      case ViewMode.BOOKING: return <Booking selectedServices={selectedServices} onToggleService={toggleService} onAddAppointment={(a) => setAppointments(prev => [a, ...prev])} serviceRegistry={workshopServices} />;
+      case ViewMode.BOOKING: return <Booking selectedServices={selectedServices} onToggleService={toggleService} onAddAppointment={(a) => setAppointments(prev => [a, ...prev])} serviceRegistry={workshopServices} appointments={appointments} member={loggedMember} />;
       case ViewMode.CONFIRMATION: return <Confirmation onNavigate={setView} />;
-      case ViewMode.ADMIN: return <Admin services={workshopServices} mediaItems={workshopMedia} homepageContent={homepageContent} users={workshopUsers} appointments={appointments} onUpdateServices={setWorkshopServices} onAddMedia={(m) => setWorkshopMedia(prev => [m, ...prev])} onUpdateMedia={(m) => setWorkshopMedia(prev => prev.map(old => old.id === m.id ? m : old))} onDeleteMedia={(id) => setWorkshopMedia(prev => prev.filter(m => m.id !== id))} onUpdateHomepage={setHomepageContent} onUpdateUsers={setWorkshopUsers} onUpdateAppointments={handleUpdateAppointments} onDeleteAppointment={handleDeleteAppointment} />;
+      case ViewMode.ADMIN: return <Admin services={workshopServices} mediaItems={workshopMedia} homepageContent={homepageContent} users={workshopUsers} appointments={appointments} membershipSignups={memberships} onUpdateServices={setWorkshopServices} onAddMedia={(m) => setWorkshopMedia(prev => [m, ...prev])} onUpdateMedia={(m) => setWorkshopMedia(prev => prev.map(old => old.id === m.id ? m : old))} onDeleteMedia={(id) => setWorkshopMedia(prev => prev.filter(m => m.id !== id))} onUpdateHomepage={setHomepageContent} onUpdateUsers={setWorkshopUsers} onUpdateAppointments={handleUpdateAppointments} onDeleteAppointment={handleDeleteAppointment} onDeleteMembership={handleDeleteMembership} />;
       default: return <Home content={homepageContent} onNavigate={setView} onStartTour={() => setIsTourActive(true)} />;
     }
   };
 
   return (
     <div className="min-h-screen flex flex-col bg-[#05070a] text-slate-50 selection:bg-blue-500/30">
-      <Navigation currentView={view} onViewChange={setView} selectionCount={selectedServices.length} />
+      <Navigation currentView={view} onViewChange={setView} selectionCount={selectedServices.length} member={loggedMember} onMemberLogin={handleMemberLogin} />
       <main className="flex-1 flex flex-col pt-16">{renderContent()}</main>
       {isTourActive && <Tour onClose={() => setIsTourActive(false)} onNavigate={(v) => { setView(v); setIsTourActive(false); }} />}
       <footer className="py-20 border-t border-white/5 bg-[#030508]">
         <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-12 items-start">
           <div className="flex flex-col gap-6">
             <Logo className="h-10" />
-            <p className="text-slate-500 text-sm leading-relaxed max-w-xs">Meticulous automotive restoration and high-end protection services for luxury vehicles in Poznań, Poland. Established 2012.</p>
+            <p className="text-slate-500 text-sm leading-relaxed max-w-xs">Meticulous automotive restoration and high-end protection services for luxury vehicles in Poland. Established 2012.</p>
           </div>
           <div className="flex flex-col gap-6">
             <h4 className="text-[10px] font-bold uppercase tracking-[0.4em] text-blue-500">Workshop</h4>
